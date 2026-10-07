@@ -6,6 +6,7 @@ export type ReservationView = {
 };
 export type DashboardState = {
   userEmail: string; configured: boolean; chargingEnabled: boolean;
+  storageMode?: "browser"; executionMessage?: string;
   targets: TargetRow[]; preferences: Preferences; reservations: ReservationView[];
   live: null | { balanceCents: number; powerWatts: number | null; businessOpen: boolean;
     activeOrder: boolean; updatedAt: string };

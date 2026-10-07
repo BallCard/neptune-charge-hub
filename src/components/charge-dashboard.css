@@ -21,7 +21,7 @@
 .charge-app {
   display: flex;
   flex-direction: column;
-  height: 100vh;
+  height: 100dvh;
   background-color: var(--nh-bg);
   color: var(--nh-text);
   font-family: system-ui, -apple-system, sans-serif;
@@ -34,7 +34,7 @@
   align-items: center;
   justify-content: center;
   padding: 16px;
-  height: 100vh;
+  min-height: 100dvh;
 }
 
 .nh-nav {
@@ -83,6 +83,7 @@
 
 .nh-main {
   flex: 1;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   order: 1;

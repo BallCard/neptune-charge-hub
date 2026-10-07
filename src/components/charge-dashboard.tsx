@@ -3,12 +3,15 @@ import React, { useState, useEffect } from 'react';
 import { activePhases, dateInShanghai, formatShanghai, nextAt, phaseNames, upcomingPlans } from '@/lib/display-time';
 import { Battery, Zap, Clock, Settings, List, Info, AlertTriangle, Plus, Trash2, RefreshCw, LogOut, Eye, EyeOff, Calendar, CalendarClock, Power } from 'lucide-react';
 import './charge-dashboard.css';
+import MobileSupport from './mobile-support';
 
 export interface ChargeDashboardProps {
   state: {
     userEmail: string;
     configured: boolean;
     chargingEnabled: boolean;
+    storageMode?: 'browser';
+    executionMessage?: string;
     targets: Array<{id: string, label: string, device: string, port: string}>;
     preferences: {defaultTime: string, weekdays: number[], maxPrepayCents: number};
     reservations: Array<{id: string, target_id: string, scheduled_at: string, phase: string, result?: unknown, created_at: string}>;
@@ -75,7 +78,7 @@ export default function ChargeDashboard({ state, busy, onAction, onLogout }: Cha
         <div className='nh-nav-footer'>
           <div className='nh-user-email'>{state.userEmail}</div>
           <button className='nh-btn nh-btn-outline nh-btn-logout' onClick={onLogout} disabled={busy}>
-            <LogOut size={16} /> 退出登录
+            <LogOut size={16} /> 锁定本机数据
           </button>
         </div>
       </nav>
@@ -89,10 +92,12 @@ export default function ChargeDashboard({ state, busy, onAction, onLogout }: Cha
         )}
 
         <div className='nh-content'>
-          <header className='nh-page-heading'><div><span className='nh-eyebrow'>NEPTUNE · 你的充电空间</span><h1>{tab === 'overview' ? '安排好下一程。' : tab === 'settings' ? '按你的习惯来。' : '每一次，都有记录。'}</h1></div><button className='nh-mobile-logout nh-icon-btn' onClick={onLogout} aria-label='退出登录'><LogOut size={20} /></button></header>
+          <header className='nh-page-heading'><div><span className='nh-eyebrow'>NEPTUNE · 本机加密空间</span><h1>{tab === 'overview' ? '安排好下一程。' : tab === 'settings' ? '按你的习惯来。' : '每一次，都有记录。'}</h1></div><button className='nh-mobile-logout nh-icon-btn' onClick={onLogout} aria-label='锁定本机数据'><LogOut size={20} /></button></header>
+          <p className='nh-local-notice' role='note'>{state.executionMessage}</p>
           {tab === 'overview' && <OverviewTab state={state} busy={busy} onAction={onAction} />}
           {tab === 'settings' && <SettingsTab state={state} busy={busy} onAction={onAction} />}
           {tab === 'history' && <HistoryTab state={state} busy={busy} onAction={onAction} now={now} parseResult={parseResult} formatDate={formatDate} />}
+          <MobileSupport />
         </div>
       </main>
     </div>
@@ -126,7 +131,7 @@ function ImportAccountView({ onAction, busy, onLogout, error }: { onAction: Char
           <h2>连接自己的尼普顿账号</h2>
         </div>
         <form onSubmit={handleSubmit} className='nh-form'>
-          <p className='nh-text-sm nh-text-muted'>在微信扫描插座二维码，进入付款页，复制完整链接。只需要绑定一次；链接将加密保存在云端，其他同学无法读取。</p>
+          <p className='nh-text-sm nh-text-muted'>在微信扫描插座二维码，进入付款页，复制完整链接。链接只在当前设备解析，账号随后加密保存在本机。此处不验证平台账号或收费，也不启动充电。</p>
           {error && <div className='nh-error-banner' role='status'>{error}</div>}
           <div className='nh-form-group'>
             <label htmlFor='import-label'>充电点名称（可选）</label>
@@ -144,9 +149,10 @@ function ImportAccountView({ onAction, busy, onLogout, error }: { onAction: Char
               <AlertTriangle size={14} /> 链接等同账号凭据，请勿分享给他人
             </div>
           </div>
-          <button type='submit' className='nh-btn nh-btn-primary' disabled={busy || !url}>绑定账号</button>
-          <button type='button' className='nh-btn nh-btn-outline' onClick={onLogout} disabled={busy}>退出登录</button>
+          <button type='submit' className='nh-btn nh-btn-primary' disabled={busy || !url}>保存到本机</button>
+          <button type='button' className='nh-btn nh-btn-outline' onClick={onLogout} disabled={busy}>锁定本机数据</button>
         </form>
+        <MobileSupport />
       </div>
     </div>
   );
@@ -167,9 +173,9 @@ function OverviewTab({ state, busy, onAction }: { state: ChargeDashboardProps['s
       <div className='nh-live-section'>
         <div className='nh-card nh-live-card'>
           <div className='nh-card-header nh-flex-between'>
-            <h3 className='nh-flex-align'><Power size={20} /> 实时状态</h3>
+            <h3 className='nh-flex-align'><Power size={20} /> 执行状态</h3>
             <button className='nh-btn nh-btn-outline nh-btn-sm' onClick={handleRefresh} disabled={busy}>
-              <RefreshCw size={14} className={busy ? 'nh-spin' : ''} /> 刷新
+              <RefreshCw size={14} className={busy ? 'nh-spin' : ''} /> 刷新本机记录
             </button>
           </div>
           {state.live ? (
@@ -195,7 +201,7 @@ function OverviewTab({ state, busy, onAction }: { state: ChargeDashboardProps['s
               </div>
             </div>
           ) : (
-            <div className='nh-empty-state'>待刷新</div>
+            <div className='nh-empty-state'>尚未连接执行器。余额、订单与功率请在微信查看。</div>
           )}
         </div>
       </div>
@@ -281,10 +287,11 @@ function NextChargeCard({ state, busy, onAction }: { state: ChargeDashboardProps
               <input id='reserve-date' type='date' min={today} max={maxDay} value={date} onChange={e => setDate(e.target.value)} required disabled={busy} />
             </div>
             <div className='nh-form-group'>
-              <label htmlFor='reserve-time'>启动时间（北京时间）</label>
+              <label htmlFor='reserve-time'>启动时间</label>
               <input id='reserve-time' type='time' value={time} onChange={e => setTime(e.target.value)} required disabled={busy} />
             </div>
           </div>
+          <p className='nh-help-text'>日期与时间均按北京时间。</p>
           <div className='nh-form-group nh-checkbox-group'>
             <label className='nh-checkbox-label'>
               <input type='checkbox' checked={confirmedPlug} onChange={e => setConfirmedPlug(e.target.checked)} disabled={busy} />
@@ -292,14 +299,15 @@ function NextChargeCard({ state, busy, onAction }: { state: ChargeDashboardProps
             </label>
           </div>
           
-          {!isServiceReady && <div className='nh-help-text nh-text-danger'>云端执行尚未启用，当前可以保存设置。</div>}
+          {!isServiceReady && <div className='nh-help-text nh-text-danger'>请先保存本机账号与设置。</div>}
+          <p className='nh-help-text'>此按钮只保存本机计划；安卓后台执行与苹果快捷指令尚未接入，不会自动开电。</p>
           {!timeValid && <div className='nh-help-text nh-text-danger'>请安排1分钟后至24小时内的启动时间。</div>}
           {hasConflict && <div className='nh-help-text nh-text-danger'>当前已有进行中的计划，无法重复预约。</div>}
           
           <div className='nh-reserve-confirm'>
             <span className='nh-text-sm nh-text-muted'>最多预扣金额: {(state.preferences.maxPrepayCents / 100).toFixed(2)}元</span>
             <button type='submit' className='nh-btn nh-btn-primary nh-btn-lg' disabled={!canSubmit}>
-              {busy ? '正在核对并登记…' : '已接好，预约这次充电'}
+              {busy ? '正在加密保存…' : '已接好，保存本机计划'}
             </button>
           </div>
         </form>
@@ -315,13 +323,13 @@ function ProgressCard({ state, busy, onAction }: { state: ChargeDashboardProps['
   const target = state.targets.find(t => t.id === booking.target_id);
   const steps = ['预约已生效', '等待恢复营业', '核对并开电', '平台确认启动'];
   const position = ['confirmed', 'already-charging'].includes(booking.phase) ? 3 : ['submitting', 'pending', 'checking'].includes(booking.phase) ? 2 : booking.phase === 'waiting' ? 1 : 0;
-  const cancelable = ['queued', 'scheduled'].includes(booking.phase) && Date.parse(booking.scheduled_at) > Date.now() + 30_000;
+  const cancelable = booking.phase === 'planned' || ['queued', 'scheduled'].includes(booking.phase) && Date.parse(booking.scheduled_at) > Date.now() + 30_000;
   return <section className='nh-card nh-progress-card' aria-label='最近预约进度'>
     <div className='nh-flex-between'><h3>本次进度</h3><span className={`nh-badge nh-phase-${booking.phase}`}>{phaseNames[booking.phase] ?? '正在核对'}</span></div>
     <p className='nh-text-sm nh-text-muted'>{target?.label ?? '已预约的充电点'} · {formatShanghai(booking.scheduled_at)}</p>
-    <ol className='nh-progress-steps'>{steps.map((step, i) => <li key={step} className={i <= position ? 'complete' : ''}><span>{i + 1}</span>{step}</li>)}</ol>
-    <p className='nh-text-sm nh-text-muted' role='status'>{parseBookingResult(booking.result) || '已持久保存，云端将在指定时间后开始核对。'}</p>
-    {cancelable && <button className='nh-btn nh-btn-outline' disabled={busy} onClick={() => void onAction('cancel', { id: booking.id }).catch(() => {})}>取消这次预约</button>}
+    {state.storageMode !== 'browser' && <ol className='nh-progress-steps'>{steps.map((step, i) => <li key={step} className={i <= position ? 'complete' : ''}><span>{i + 1}</span>{step}</li>)}</ol>}
+    <p className='nh-text-sm nh-text-muted' role='status'>{parseBookingResult(booking.result) || '记录保存在当前设备。'}</p>
+    <div className='nh-local-actions'>{cancelable && <button className='nh-btn nh-btn-outline' disabled={busy} onClick={() => void onAction('cancel', { id: booking.id }).catch(() => {})}>取消本机计划</button>}<button className='nh-btn nh-btn-outline' disabled={busy} onClick={() => void onAction('exportPlan', { id: booking.id }).catch(() => {})}>导出计划（不含账号）</button></div>
     {booking.phase === 'uncertain' && <div><p className='nh-help-text'>结果不明时会锁定新预约。请先打开微信核对这次订单，再解除锁定。</p><button className='nh-btn nh-btn-outline' disabled={busy} onClick={() => { if (window.confirm('已在微信查看本次订单，并确认是否正在充电？确认后将再次只读核对平台状态，不会发起充电。')) void onAction('resolveUncertain', { id: booking.id, confirmedReviewed: true }).catch(() => {}); }}>已在微信核对，解除预约锁</button></div>}
   </section>;
 }
@@ -386,6 +394,7 @@ function SettingsTab({ state, busy, onAction }: { state: ChargeDashboardProps['s
 
   return (
     <div className='nh-tab-content'>
+      <section className='nh-card'><h3>本机数据与备份</h3><p className='nh-text-sm nh-text-muted'>账号、设置与计划只保存在当前浏览器，不会自动同步。清除浏览器数据或换手机前，请导出加密备份并保留本机密码。</p><button className='nh-btn nh-btn-outline' disabled={busy} onClick={() => void onAction('exportBackup', {}).catch(() => {})}>导出加密备份</button><p className='nh-help-text'>分享给同学的是网站地址，每人自行创建本机空间和绑定自己的账号。</p></section>
       <div className='nh-card'>
         <div className='nh-card-header'>
           <h3>目标插座管理</h3>
@@ -462,6 +471,7 @@ function HistoryTab({ state, busy, onAction, now, parseResult, formatDate }: { s
   };
 
   const canCancel = (r: ChargeDashboardProps['state']['reservations'][0]) => {
+    if (r.phase === 'planned') return true;
     if (r.phase !== 'queued' && r.phase !== 'scheduled') return false;
     try {
       const scheduledTime = new Date(r.scheduled_at).getTime();
@@ -499,7 +509,7 @@ function HistoryTab({ state, busy, onAction, now, parseResult, formatDate }: { s
                   {cancelable && (
                     <div className='nh-history-actions'>
                       <button className='nh-btn nh-btn-outline nh-btn-sm nh-text-danger' onClick={() => handleCancel(r.id)} disabled={busy}>
-                        取消预约
+                        取消本机计划
                       </button>
                     </div>
                   )}

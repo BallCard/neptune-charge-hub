@@ -7,5 +7,5 @@ node_modules/
 .workflow-data/
 artifacts/
 .local/
-.local/
+out/
 /.swc

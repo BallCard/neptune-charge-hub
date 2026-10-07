@@ -4,21 +4,18 @@
   "private": true,
   "scripts": {
     "dev": "next dev --hostname 127.0.0.1 --port 3086",
-    "build": "next build",
-    "start": "next start --hostname 127.0.0.1 --port 3086",
+    "build": "next build && node scripts/build-offline.mjs",
+    "start": "node scripts/serve-static.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts"
   },
   "dependencies": {
-    "@supabase/supabase-js": "2.117.2",
     "lucide-react": "1.52.0",
     "next": "16.4.0",
     "react": "19.3.0",
     "react-dom": "19.3.0",
-    "workflow": "5.1.0",
     "zod": "4.6.5"
   },
-  "overrides": { "devalue": "5.9.4", "nanoid": "5.1.16" },
   "devDependencies": {
     "@types/node": "26.6.4",
     "@types/react": "19.3.0",

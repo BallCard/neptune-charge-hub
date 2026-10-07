@@ -1,11 +1,12 @@
 import type { Preferences } from "./contracts";
 export const phaseNames: Record<string, string> = {
+  planned: "计划已保存 · 未启用自动执行",
   queued: "正在登记", scheduled: "预约已生效", waiting: "等待恢复营业", checking: "核对账号与插座",
   submitting: "正在发起充电", pending: "等待开电确认", confirmed: "已确认启动",
-  "already-charging": "已有本人订单", cancelled: "已取消", failed: "未能启动", expired: "已过执行窗口",
+  "already-charging": "已有本人订单", cancelled: "计划已取消", failed: "未能启动", expired: "计划已过期 · 未执行",
   uncertain: "需要微信核对", rejected: "平台拒绝开电",
 };
-export const activePhases = ["queued", "scheduled", "waiting", "checking", "submitting", "pending", "uncertain"];
+export const activePhases = ["planned", "queued", "scheduled", "waiting", "checking", "submitting", "pending", "uncertain"];
 export function dateInShanghai(at = Date.now()) { return new Date(at + 8 * 3600_000).toISOString().slice(0, 10); }
 export function formatShanghai(iso: string) {
   return new Intl.DateTimeFormat("zh-CN", { timeZone: "Asia/Shanghai", month: "long", day: "numeric", weekday: "short", hour: "2-digit", minute: "2-digit", hour12: false }).format(new Date(iso));
