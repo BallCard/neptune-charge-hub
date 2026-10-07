@@ -1,0 +1,11 @@
+node_modules/
+.next/
+.vercel/
+.env*
+!.env.example
+*.tsbuildinfo
+.workflow-data/
+artifacts/
+.local/
+.local/
+/.swc
