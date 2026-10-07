@@ -1,6 +1,6 @@
 {
-  "id": "/", "name": "晨充 · 本机充电计划", "short_name": "晨充",
-  "description": "在自己的设备上加密保存充电计划。自动执行尚未接入。",
+  "id": "/", "name": "晨充 · 二维码充电预约", "short_name": "晨充",
+  "description": "识别插座二维码、选择方案、安排单次预约。自动执行需安卓本机助手。",
   "start_url": "/", "scope": "/", "display": "standalone", "lang": "zh-CN",
   "background_color": "#f7f8f5", "theme_color": "#235140",
   "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
