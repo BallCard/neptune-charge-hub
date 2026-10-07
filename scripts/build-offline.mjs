@@ -29,4 +29,13 @@ self.addEventListener('fetch',event=>{
  event.respondWith(caches.open(CACHE).then(cache=>cache.match(url.pathname)).then(cached=>cached||fetch(request)));
 });\n`;
 await writeFile(join(root, "sw.js"), script, "utf8");
+async function sourceFiles(directory,prefix="") {
+  const entries=[];
+  for(const item of await readdir(directory,{withFileTypes:true})) {
+    if(item.isDirectory()) entries.push(...await sourceFiles(join(directory,item.name),prefix+item.name+"/"));
+    else if(/\.(ts|tsx|css)$/.test(item.name)) entries.push({path:"src/"+prefix+item.name,sha256:createHash("sha256").update(await readFile(join(directory,item.name))).digest("hex")});
+  }
+  return entries;
+}
+await writeFile(join(root,"build-info.json"),JSON.stringify({version:2,sourceHashes:await sourceFiles(join(root,"..","src"))}));
 console.log(JSON.stringify({ offlineAssets: paths.length, cache: name, containsUserData: false }));
