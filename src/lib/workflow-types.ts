@@ -6,7 +6,8 @@ export type BookingPhase = "scheduled" | "waiting" | "checking" | "submitting" |
   "already-charging" | "cancelled" | "failed" | "uncertain" | "reviewed" | "rejected" | "missed" | "scheduling-failed";
 export type WorkflowBooking = { id: string; device: string; port: string; scheduledAt: string; createdAt: string;
   schemeTitle: string; maxMinutes: number; phase: BookingPhase; result: string;
-  mailStatus: "queued" | "sent" | "failed" | "uncertain" | "not-required" };
+  mailStatus: "queued" | "sent" | "failed" | "uncertain" | "not-required";
+  notificationStatus?: "queued" | "shown" | "failed" | "not-required" };
 export type WorkflowState = { executor: { kind: "none" | "android" | "windows" | "ios"; connected: boolean;
   exactAlarm: boolean; notifications: boolean; detail: string }; profile: { accountBound: boolean;
   mailConfigured: boolean; recipient: string }; target: QrTarget | null; quote: TargetQuote | null;

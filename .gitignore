@@ -11,3 +11,4 @@ out/
 /.swc
 public/downloads/*.apk
 public/downloads/*.apk.idsig
+public/vendor/*.wasm

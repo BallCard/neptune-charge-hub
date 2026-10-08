@@ -19,7 +19,11 @@ export function parseQrTarget(raw: string): QrTarget {
     if (values.length > 1 || (!optional && values.length !== 1)) throw new Error("二维码字段缺失或重复。");
     return values[0];
   };
-  const device = unique("devaddress")!;
+  // Printed socket labels use this official redirect route, with no account identity.
+  const scan = /^\/wechat\/wxscan\/(\d{10})\/?$/.exec(url.pathname);
+  const device = scan ? scan[1] : unique("devaddress")!;
+  if (scan && [...params.keys(), ...fragment.keys()].some(key => ["devaddress", "socketNumber", "areaid"].includes(key)))
+    throw new Error("二维码包含重复的插座信息，请重新核对。");
   if (!/^\d{10}$/.test(device)) throw new Error("二维码必须包含8位设备号和2位插座号。");
   const port = device.slice(8), socket = unique("socketNumber", true);
   if (Number(port) < 1 || Number(port) > 99 || socket !== undefined && (!/^\d{1,2}$/.test(socket) || socket.padStart(2, "0") !== port))
@@ -28,6 +32,20 @@ export function parseQrTarget(raw: string): QrTarget {
   if (area !== undefined && (!/^\d+$/.test(area) || !Number.isSafeInteger(Number(area)) || Number(area) <= 0))
     throw new Error("二维码区域字段不正确。");
   return { device: device.slice(0, 8), port, ...(area ? { areaId: Number(area) } : {}) };
+}
+
+export function parseSocketNumber(raw: string): QrTarget {
+  if (!/^\d{10}$/.test(raw.trim())) throw new Error("请输入标签上的完整10位编号。");
+  return parseQrTarget(`https://szlzxn.cn/wechat/wxscan/${raw.trim()}`);
+}
+
+/** RGBA pixels stay on the device. Also usable by local diagnostic tests. */
+export async function decodeQrPixels(pixels: ImageData): Promise<QrTarget> {
+  const { readBarcodes } = await import("zxing-wasm/reader");
+  const codes = await readBarcodes(pixels, { formats: ["QRCode"], tryHarder: true, tryRotate: true, tryInvert: true, maxNumberOfSymbols: 4 });
+  if (!codes.length) throw new Error("没有识别到二维码。可裁剪后重试，或直接导入微信付款页授权链接。");
+  if (codes.length !== 1) throw new Error("图片中有多个二维码，请只保留要预约的插座码。");
+  return parseQrTarget(codes[0].text);
 }
 
 export async function readQrImage(file: File): Promise<QrTarget> {
@@ -42,9 +60,8 @@ export async function readQrImage(file: File): Promise<QrTarget> {
     const context = canvas.getContext("2d", { willReadFrequently: true });
     if (!context) throw new Error("当前浏览器无法读取图片，请粘贴二维码链接。");
     context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-    const pixels = context.getImageData(0, 0, canvas.width, canvas.height), { default: jsQR } = await import("jsqr");
-    const result = jsQR(pixels.data, pixels.width, pixels.height, { inversionAttempts: "attemptBoth" });
-    if (!result) throw new Error("没有识别到二维码。请裁剪二维码区域或换一张清晰图片。");
-    return parseQrTarget(result.data);
+    const { prepareZXingModule } = await import("zxing-wasm/reader");
+    prepareZXingModule({ overrides: { locateFile: () => "/vendor/zxing_reader.wasm" } });
+    return await decodeQrPixels(context.getImageData(0, 0, canvas.width, canvas.height));
   } finally { bitmap.close(); }
 }

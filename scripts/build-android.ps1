@@ -32,7 +32,7 @@ $taskD8Jar = Join-Path $taskPaths.buildTools 'lib/d8.jar'
 & $taskPaths.java -cp $taskD8Jar com.android.tools.r8.D8 --lib $taskPaths.androidJar --min-api 26 --output $taskDex $taskJar
 if ($LASTEXITCODE -ne 0) { throw 'Android bytecode compilation failed.' }
 $taskUnsigned = Join-Path $taskBuild 'unsigned.apk'
-& (Join-Path $taskPaths.buildTools 'aapt2.exe') link -I $taskPaths.androidJar --manifest (Join-Path $taskRoot 'native/android/AndroidManifest.xml') -A (Join-Path $taskBuild 'assets') --min-sdk-version 26 --target-sdk-version 35 --version-code 2 --version-name '0.2.0-test' -o $taskUnsigned
+& (Join-Path $taskPaths.buildTools 'aapt2.exe') link -I $taskPaths.androidJar --manifest (Join-Path $taskRoot 'native/android/AndroidManifest.xml') -A (Join-Path $taskBuild 'assets') --min-sdk-version 26 --target-sdk-version 35 --version-code 3 --version-name '0.3.0-test' -o $taskUnsigned
 if ($LASTEXITCODE -ne 0) { throw 'Android resources packaging failed.' }
 & (Join-Path $taskJavaBin 'jar.exe') --update --file $taskUnsigned -C $taskDex classes.dex
 if ($LASTEXITCODE -ne 0) { throw 'Android dex packaging failed.' }
@@ -53,5 +53,5 @@ if ($LASTEXITCODE -ne 0) { throw 'APK signing failed.' }
 & $taskPaths.java -jar $taskSignerJar verify --verbose --print-certs $taskApk
 if ($LASTEXITCODE -ne 0) { throw 'APK signature verification failed.' }
 $taskHash = (Get-FileHash -LiteralPath $taskApk -Algorithm SHA256).Hash.ToLowerInvariant()
-@{apk='neptune-local-assistant.apk';version='0.2.0-test';sha256=$taskHash;bytes=(Get-Item -LiteralPath $taskApk).Length;realDeviceValidated=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskDownloads 'version.json') -Encoding utf8
+@{apk='neptune-local-assistant.apk';version='0.3.0-test';sha256=$taskHash;bytes=(Get-Item -LiteralPath $taskApk).Length;realDeviceValidated=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskDownloads 'version.json') -Encoding utf8
 Write-Output ('APK built and signature verified: ' + $taskApk)

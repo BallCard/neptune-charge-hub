@@ -42,6 +42,7 @@ final class ResultMail implements ChargeRunner.Notifier {
     }
     public void send(ChargeRunner.Repository repository,String id) throws Exception {
         JSONObject booking = repository.booking(id);
+        if(!booking.has("mail")||booking.optString("notificationMode").equals("local")) { repository.update(id,b->b.put("mailStatus","not-required"));return; }
         String old = booking.optString("mailStatus","queued");
         if (Arrays.asList("sent","uncertain","not-required").contains(old) || booking.optInt("mailAttempts",0) >= 3) return;
         if ("sending".equals(booking.optString("mailPhase"))) { repository.update(id,b -> b.put("mailStatus","uncertain").put("mailPhase","uncertain")); return; }

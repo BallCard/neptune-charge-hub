@@ -15,9 +15,9 @@ public final class ChargeService extends Service {
     static Notification notification(Context context,String title,String text) {
         PendingIntent open=PendingIntent.getActivity(context,0,new Intent(context,MainActivity.class),PendingIntent.FLAG_IMMUTABLE | PendingIntent.FLAG_UPDATE_CURRENT);
         return new Notification.Builder(context,CHANNEL).setSmallIcon(android.R.drawable.ic_lock_idle_charging).setContentTitle(title)
-            .setContentText(text).setContentIntent(open).setAutoCancel(true).build();
+            .setContentText(text).setStyle(new Notification.BigTextStyle().bigText(text)).setContentIntent(open).setOnlyAlertOnce(true).setAutoCancel(true).build();
     }
-    public void onCreate() { super.onCreate(); channels(this); startForeground(6,notification(this,"晨充正在核对","本机执行中，结果会通过邮件和本机通知告知。")); }
+    public void onCreate() { super.onCreate(); channels(this); startForeground(6,notification(this,"晨充正在核对","本机执行中，结果将通过手机通知告知。")); }
     public int onStartCommand(Intent intent,int flags,int startId) {
         if(intent==null){stopSelf(startId);return START_NOT_STICKY;}
         String id=intent.getStringExtra("id"); boolean watch=intent.getBooleanExtra("watch",false);
@@ -28,11 +28,17 @@ public final class ChargeService extends Service {
             LocalVault vault=new LocalVault(this);
             try {
                 new ChargeRunner(vault,new Platform(),new ResultMail()).run(id,watch);
-                org.json.JSONObject result=vault.booking(id);
-                ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id.hashCode(),notification(this,"晨充预约结果",result.optString("result","请在微信核对。")));
             } catch(Exception ignored) {
-                try { vault.update(id,b -> b.put("result","后台检查未完成，请在微信核对；没有自动重复提交。")); } catch(Exception ignoredAgain) {}
-            } finally { if(wake.isHeld())wake.release(); stopSelf(startId); }
+                try { vault.update(id,b -> { if(!Checks.terminal(b.optString("phase"))&&!b.optString("phase").equals("cancelled")) {
+                    b.put("phase",b.has("submittedAt")?"uncertain":"failed").put("result","后台检查未完成，请在微信核对；没有自动重复提交。").put("notificationStatus","queued");
+                }}); } catch(Exception ignoredAgain) {}
+            } finally {
+                try { NotificationResult.send(vault,id,b -> {
+                    if(!new WorkflowController(this).notifications())throw new Exception("通知权限不可用。");
+                    ((NotificationManager)getSystemService(NOTIFICATION_SERVICE)).notify(id.hashCode(),notification(this,"晨充预约结果",b.optString("result","请在微信核对。")));
+                }); } catch(Exception ignored) {}
+                if(wake.isHeld())wake.release(); stopSelf(startId);
+            }
         });
         return START_NOT_STICKY;
     }

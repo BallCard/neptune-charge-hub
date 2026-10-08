@@ -22,10 +22,15 @@ final class ChargeRunner {
         repository.update(id,b -> { if (b.optString("phase").equals("cancelled")) throw new Exception("预约已取消。"); b.put("phase",value).put("result",result); });
     }
     private void finish(String id,String value,String result) throws Exception {
-        repository.update(id,b -> { if (b.optString("phase").equals("cancelled")) return; b.put("phase",value).put("result",result).put("mailStatus","queued"); });
+        repository.update(id,b -> { if (b.optString("phase").equals("cancelled")) return;
+            b.put("phase",value).put("result",result).put("mailStatus",b.has("mail")&&!b.optString("notificationMode").equals("local")?"queued":"not-required").put("notificationStatus","queued"); });
         if (!repository.booking(id).optString("phase").equals("cancelled")) notifyResult(id);
     }
     private void notifyResult(String id) throws Exception {
+        JSONObject booking=repository.booking(id);
+        if(!booking.has("mail")||booking.optString("notificationMode").equals("local")) {
+            repository.update(id,b->b.put("mailStatus","not-required"));return;
+        }
         try { notifier.send(repository,id); }
         catch (Exception ignored) { repository.update(id,b -> { if (!Arrays.asList("sent","uncertain").contains(b.optString("mailStatus"))) b.put("mailStatus","failed"); }); }
     }

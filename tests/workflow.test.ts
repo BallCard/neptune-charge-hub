@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { parseQrTarget } from "../src/lib/qr-target";
+import { parseQrTarget, parseSocketNumber } from "../src/lib/qr-target";
 import { tomorrowAt } from "../src/lib/workflow-types";
 test("tomorrow means next Shanghai calendar day even before 06:00 and on year boundaries",()=>{
   assert.equal(tomorrowAt("06:00",Date.parse("2026-10-07T01:00:00+08:00")),"2026-10-07T22:00:00.000Z");
@@ -17,4 +17,11 @@ test("official QR targets and WeChat wrappers decode locally without carrying ac
 test("QR parser rejects foreign destinations, duplicate fields and inconsistent sockets",()=>{
   const base="https://www.szlzxn.cn/wx/?devaddress=1234567806";
   for(const url of [base.replace("www.szlzxn.cn","evil.example"),base+"&devaddress=8765432101",base+"#/pay?socketNumber=7",base.replace("1234567806","1234567800"),base.replace("www.szlzxn.cn","www.szlzxn.cn:444"),"https://open.weixin.qq.com/connect/oauth2/authorize?redirect_uri="+encodeURIComponent("https://evil.example/?devaddress=1234567806")])assert.throws(()=>parseQrTarget(url));
+});
+test("printed official scan routes and manual socket numbers identify the socket without authorization",()=>{
+  const target={device:"12345678",port:"06"};
+  assert.deepEqual(parseQrTarget("http://szlzxn.cn/wechat/wxscan/1234567806"),target);
+  assert.deepEqual(parseSocketNumber(" 1234567806 "),target);
+  for(const raw of ["1234567800","123456789","1234567806?openId=x"] )assert.throws(()=>parseSocketNumber(raw));
+  assert.throws(()=>parseQrTarget("http://szlzxn.cn/wechat/wxscan/1234567806?devaddress=8765432101"));
 });

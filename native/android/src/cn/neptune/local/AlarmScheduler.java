@@ -32,7 +32,7 @@ final class AlarmScheduler {
                 if (at > now) register(id,at);
                 else if (now <= at + 10 * 60_000) { manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,now+10_000,operation(id,false)); manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,now+15*60_000,operation(id,true)); }
                 else manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,now+10_000,operation(id,true));
-            } else if (Checks.terminal(phase) && !java.util.Arrays.asList("sent","uncertain","not-required").contains(item.optString("mailStatus")) && item.optInt("mailAttempts",0)<3)
+            } else if (NotificationResult.pending(item) || Checks.terminal(phase) && !java.util.Arrays.asList("sent","uncertain","not-required").contains(item.optString("mailStatus")) && item.optInt("mailAttempts",0)<3)
                 manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP,now+10_000,operation(id,true));
         }
     }

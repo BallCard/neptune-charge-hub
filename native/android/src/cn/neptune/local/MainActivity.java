@@ -37,10 +37,10 @@ public final class MainActivity extends Activity {
                 if(!"https".equals(uri.getScheme())||!"app.neptune.local".equals(uri.getHost())||!"GET".equals(request.getMethod()))return denied();
                 String path=uri.getPath();if(path==null)return denied();if(path.equals("/"))path="/index.html";
                 if(path.contains("..")||path.contains("\\")||path.indexOf('\0')>=0||path.startsWith("/downloads/"))return denied();
-                String type=path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".png")?"image/png":path.endsWith(".svg")?"image/svg+xml":path.endsWith(".webmanifest")?"application/manifest+json":path.endsWith(".html")?"text/html":"text/plain";
+                String type=path.endsWith(".wasm")?"application/wasm":path.endsWith(".js")?"application/javascript":path.endsWith(".css")?"text/css":path.endsWith(".png")?"image/png":path.endsWith(".svg")?"image/svg+xml":path.endsWith(".webmanifest")?"application/manifest+json":path.endsWith(".html")?"text/html":"text/plain";
                 try{
                     java.util.Map<String,String> headers=new java.util.HashMap<>();headers.put("X-Content-Type-Options","nosniff");headers.put("Referrer-Policy","no-referrer");
-                    headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'");
+                    headers.put("Content-Security-Policy","default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self'; worker-src 'none'; frame-src 'none'; object-src 'none'; base-uri 'self'; form-action 'none'");
                     return new WebResourceResponse(type,"UTF-8",200,"OK",headers,getAssets().open("web"+path));
                 }catch(Exception e){return new WebResourceResponse("text/plain","UTF-8",404,"Not Found",java.util.Collections.emptyMap(),new ByteArrayInputStream(new byte[0]));}
             }
@@ -85,7 +85,7 @@ public final class MainActivity extends Activity {
     }
     private void passwordDialog(boolean restore){
         EditText password=new EditText(this);password.setInputType(android.text.InputType.TYPE_CLASS_TEXT|android.text.InputType.TYPE_TEXT_VARIATION_PASSWORD);password.setHint("至少8个字符，请自行保管");
-        new AlertDialog.Builder(this).setTitle(restore?"恢复配置备份":"设置配置备份密码").setMessage("账号和邮件配置将加密保存。备份不登记任何预约，密码遗失无法找回。").setView(password)
+        new AlertDialog.Builder(this).setTitle(restore?"恢复配置备份":"设置配置备份密码").setMessage("本机账号配置将加密保存。备份不登记任何预约，密码遗失无法找回。").setView(password)
             .setNegativeButton("取消",null).setPositiveButton("继续",(dialog,which)->{
                 String secret=password.getText().toString();password.setText("");
                 if(secret.length()<8||secret.length()>256){Toast.makeText(this,"密码长度不正确。",Toast.LENGTH_LONG).show();return;}

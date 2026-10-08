@@ -9,7 +9,7 @@ const safeState = z.object({
   quote: z.object({ device: z.string().regex(/^\d{8}$/), port: z.string().regex(/^(0[1-9]|[1-9]\d)$/), checkedAt: z.iso.datetime(), balanceCents: z.number().int().nonnegative(), businessOpen: z.boolean(), available: z.boolean(), fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
     schemes: z.array(z.object({ id: z.string().max(32), title: z.string().max(80), description: z.string().max(300), maxMinutes: z.number().int().positive(), prepayCents: z.number().int().positive() })).max(30) }).nullable(),
   bookings: z.array(z.object({ id: z.uuid(), device: z.string().regex(/^\d{8}$/), port: z.string().regex(/^(0[1-9]|[1-9]\d)$/), scheduledAt: z.iso.datetime(), createdAt: z.iso.datetime(), schemeTitle: z.string().max(80), maxMinutes: z.number().int().positive(),
-    phase: z.enum(["scheduled","waiting","checking","submitting","pending","confirmed","already-charging","cancelled","failed","uncertain","reviewed","rejected","missed","scheduling-failed"]), result: z.string().max(600), mailStatus: z.enum(["queued","sent","failed","uncertain","not-required"]) })).max(200),
+    phase: z.enum(["scheduled","waiting","checking","submitting","pending","confirmed","already-charging","cancelled","failed","uncertain","reviewed","rejected","missed","scheduling-failed"]), result: z.string().max(600), mailStatus: z.enum(["queued","sent","failed","uncertain","not-required"]), notificationStatus: z.enum(["queued","shown","failed","not-required"]).optional() })).max(200),
 });
 export function nativeAvailable() { return typeof window !== "undefined" && typeof window.NeptuneNative?.request === "function"; }
 export function nativeAction(action: string, payload: Record<string, unknown> = {}): Promise<WorkflowState> {

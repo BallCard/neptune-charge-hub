@@ -1,18 +1,11 @@
 "use client";
-
-import React, { useState, useEffect, useRef } from "react";
-import "./charge-workflow.css";
-import type { WorkflowState, QrTarget, ChargeScheme, TargetQuote, BookingPhase, WorkflowBooking } from "@/lib/workflow-types";
-import { workflowPhaseNames, tomorrowAt, formatBookingTime } from "@/lib/workflow-types";
-import { Upload, Link as LinkIcon, Battery, Clock, Settings, History, AlertCircle, CheckCircle2, XCircle, Mail, Smartphone, RefreshCw, Download, Zap, Calendar, Camera, Info } from "lucide-react";
-
-const mailStatusMap: Record<string, string> = {
-  "queued": "等待发送",
-  "sent": "已交给邮件服务器",
-  "failed": "失败",
-  "uncertain": "结果不明",
-  "not-required": "无需发送"
-};
+import React, { useState, useEffect, useMemo } from 'react';
+import './charge-workflow.css';
+import { Camera, Settings, AlertTriangle, X, Smartphone, WifiOff } from 'lucide-react';
+import {
+  type BookingPhase, type WorkflowBooking, type WorkflowState,
+  workflowPhaseNames, tomorrowAt, formatBookingTime
+} from '@/lib/workflow-types';
 
 export default function ChargeWorkflow(props: {
   state: WorkflowState;
@@ -20,446 +13,361 @@ export default function ChargeWorkflow(props: {
   onAction: (action: string, payload: Record<string, unknown>) => Promise<void>;
   onQrFile: (file: File) => Promise<void>;
 }) {
-  const { state, busy, onAction, onQrFile } = props;
-
+  const { state, busy } = props;
   const [localError, setLocalError] = useState("");
-  const [now, setNow] = useState(Date.now());
 
-  // Step 1: Target
-  const [showPaste, setShowPaste] = useState(false);
-  const [pasteUrl, setPasteUrl] = useState("");
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [manualUrl, setManualUrl] = useState("");
+  const [manualNum, setManualNum] = useState("");
 
-  // Step 2: Scheme
-  const [selectedSchemeId, setSelectedSchemeId] = useState<string>("");
-
-  // Step 3: Schedule
-  const [scheduledStr, setScheduledStr] = useState<string>("");
-  const [maxPrepayYuan, setMaxPrepayYuan] = useState<string>("2");
-  const [confirmedPlug, setConfirmedPlug] = useState(false);
-
-  // Config forms
-  const [showConfig, setShowConfig] = useState(!state.profile.accountBound || !state.profile.mailConfigured);
   const [accountUrl, setAccountUrl] = useState("");
-  const [editAccount, setEditAccount] = useState(false);
-  const [mailConfig, setMailConfig] = useState({ recipient: "", sender: "", host: "smtp.qq.com", port: 465, password: "" });
+  const [editingAccount, setEditingAccount] = useState(false);
 
-  // Init Time
+  const [selectedSchemeId, setSelectedSchemeId] = useState("");
+
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+
+  const [confirmedPlug, setConfirmedPlug] = useState(false);
+  const [maxPrepayInput, setMaxPrepayInput] = useState("2");
+
+  const [uncertainChecks, setUncertainChecks] = useState<Record<string, boolean>>({});
+
+  const [now, setNow] = useState(Date.now());
   useEffect(() => {
-    try {
-      const tomorrowIso = tomorrowAt("06:00", Date.now());
-      const d = new Date(tomorrowIso);
-      const bjTimeMs = d.getTime() + 8 * 3600000;
-      const bjDateStr = new Date(bjTimeMs).toISOString().slice(0, 16);
-      setScheduledStr(bjDateStr);
-    } catch (e) {
-      // fallback
+    const t = setInterval(() => setNow(Date.now()), 15000);
+    return () => clearInterval(t);
+  }, []);
+
+  useEffect(() => {
+    if (!scheduleDate && !scheduleTime) {
+      const iso = new Date(Date.parse(tomorrowAt('06:00', now)) + 8 * 3600_000).toISOString().split('T');
+      setScheduleDate(iso[0]);
+      setScheduleTime(iso[1].substring(0, 5));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tick 15s
   useEffect(() => {
-    const timer = setInterval(() => setNow(Date.now()), 15000);
-    return () => clearInterval(timer);
-  }, []);
-
-  // Update selected scheme if quote changes and current selection is invalid
-  useEffect(() => {
-    if (state.quote?.schemes && state.quote.schemes.length > 0) {
-      if (!selectedSchemeId || !state.quote.schemes.find(s => s.id === selectedSchemeId)) {
+    setConfirmedPlug(false);
+    if (state.quote && state.quote.schemes.length > 0) {
+      if (!state.quote.schemes.find(s => s.id === selectedSchemeId)) {
         setSelectedSchemeId(state.quote.schemes[0].id);
       }
+    } else {
+      setSelectedSchemeId("");
     }
-  }, [state.quote, selectedSchemeId]);
+  }, [state.quote?.fingerprint, state.target?.device, state.target?.port, selectedSchemeId, scheduleDate, scheduleTime, maxPrepayInput]);
 
-  const doAction = async (action: string, payload: Record<string, unknown>) => {
+  const wrapAction = async (action: string, payload: Record<string, unknown>) => {
     setLocalError("");
     try {
-      await onAction(action, payload);
+      await props.onAction(action, payload);
       return true;
-    } catch (err: unknown) {
-      setLocalError(err instanceof Error ? err.message : "操作未完成，请核对输入。");
+    } catch (e: unknown) {
+      setLocalError(e instanceof Error ? e.message : "操作失败");
       return false;
     }
   };
 
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleQrUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setLocalError("");
     try {
-      await onQrFile(file);
+      await props.onQrFile(file);
     } catch (err: unknown) {
       setLocalError(err instanceof Error ? err.message : "二维码识别失败");
     } finally {
-      if (fileInputRef.current) fileInputRef.current.value = "";
+      e.target.value = '';
     }
   };
 
-  const handlePasteSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!pasteUrl.trim()) return;
-    if (await doAction("setTarget", { url: pasteUrl.trim() })) { setPasteUrl(""); setShowPaste(false); }
+  const handleBindAccount = async () => {
+    setLocalError("");
+    try {
+      await props.onAction("configureAccount", { url: accountUrl });
+      setAccountUrl("");
+      setEditingAccount(false);
+    } catch (e: unknown) {
+      setLocalError(e instanceof Error ? e.message : "授权失败");
+    }
   };
 
-  const isQuoteValid = !!(state.target && state.quote && state.target.device === state.quote.device && state.target.port === state.quote.port);
-  const selectedScheme = state.quote?.schemes.find(s => s.id === selectedSchemeId);
+  const onReserve = async () => {
+    if (!canReserve || !state.target || !state.quote || !selectedSchemeId) return;
+    setLocalError("");
+    try {
+      const scheduledAt = new Date(`${scheduleDate}T${scheduleTime}:00+08:00`).toISOString();
+      await props.onAction("reserve", {
+        idempotencyKey: crypto.randomUUID(),
+        target: state.target,
+        schemeId: selectedSchemeId,
+        quoteFingerprint: state.quote.fingerprint,
+        scheduledAt,
+        confirmedPlug,
+        maxPrepayCents
+      });
+      setConfirmedPlug(false);
+    } catch (e: unknown) {
+      setLocalError(e instanceof Error ? e.message : "预约失败");
+    }
+  };
 
-  const activePhases = ["scheduled", "waiting", "checking", "submitting", "pending", "uncertain"];
+  const isQuoteMatching = state.quote && state.target && state.quote.device === state.target.device && state.quote.port === state.target.port;
+
+  const isValidTime = useMemo(() => {
+    if (!scheduleDate || !scheduleTime) return false;
+    const t = new Date(`${scheduleDate}T${scheduleTime}:00+08:00`).getTime();
+    return t >= now + 60_000 && t <= now + 48 * 3600_000;
+  }, [scheduleDate, scheduleTime, now]);
+
+  const reserveButtonText = useMemo(() => {
+    if (!scheduleDate || !scheduleTime) return "预约开电";
+    const tmr = new Date(now + 8 * 3600_000 + 24 * 3600_000).toISOString().slice(0, 10);
+    const isTomorrow = scheduleDate === tmr;
+    if (isTomorrow) {
+      return `预约 明天 ${scheduleTime} 开电`;
+    } else {
+      return `预约 ${scheduleDate.slice(5).replace('-', '月')}日 ${scheduleTime} 开电`;
+    }
+  }, [scheduleDate, scheduleTime, now]);
+
+  const activePhases: BookingPhase[] = ["scheduled", "waiting", "checking", "submitting", "pending", "uncertain"];
   const hasActiveBooking = state.bookings.some(b => activePhases.includes(b.phase));
+  const selectedScheme = state.quote?.schemes.find(s => s.id === selectedSchemeId);
+  const maxPrepayCents = /^\d+(\.\d{1,2})?$/.test(maxPrepayInput) ? Math.round(Number(maxPrepayInput) * 100) : NaN;
 
-  const canReserve =
+  const canReserve = !!(
     state.executor.connected &&
     state.executor.exactAlarm &&
     state.executor.notifications &&
     state.profile.accountBound &&
-    state.profile.mailConfigured &&
-    isQuoteValid &&
+    isQuoteMatching &&
     state.quote?.available &&
-    selectedSchemeId &&
-    confirmedPlug &&
+    selectedScheme &&
+    state.quote.balanceCents >= Math.max(200, selectedScheme.prepayCents) &&
+    maxPrepayCents >= selectedScheme.prepayCents && maxPrepayCents <= 1000 &&
     !hasActiveBooking &&
-    scheduledStr;
+    confirmedPlug &&
+    isValidTime &&
+    !busy
+  );
 
-  const handleReserve = async () => {
-    if (!canReserve || !selectedScheme) return;
-    let prepayVal = Math.round(parseFloat(maxPrepayYuan) * 100);
-    if (isNaN(prepayVal) || prepayVal < 1 || prepayVal > 1000) {
-      setLocalError("预扣金额需在0.01元至10.00元之间");
-      return;
-    }
-    try {
-      const isoTime = new Date(scheduledStr + ":00+08:00").toISOString();
-      const success = await doAction("reserve", {
-        idempotencyKey: crypto.randomUUID(),
-        target: state.target,
-        schemeId: selectedSchemeId,
-        quoteFingerprint: state.quote!.fingerprint,
-        scheduledAt: isoTime,
-        confirmedPlug: true,
-        maxPrepayCents: prepayVal
-      });
-      if (success) setConfirmedPlug(false);
-    } catch (e: unknown) {
-      setLocalError(e instanceof Error ? e.message : "预约参数格式不正确。");
-    }
+  const renderBooking = (booking: WorkflowBooking, compact: boolean = false) => {
+    const isCancellable = booking.phase === "scheduled" && (new Date(booking.scheduledAt).getTime() - now > 30000);
+    const isUncertain = booking.phase === "uncertain";
+    const isTerminal = ["confirmed", "already-charging", "failed", "uncertain", "reviewed", "rejected", "missed", "scheduling-failed"].includes(booking.phase);
+    const notificationFailed = booking.notificationStatus === "failed";
+
+    return (
+      <div key={booking.id} className={`cw-booking-card ${compact ? 'cw-booking-compact' : ''} cw-mt-8`}>
+        <div className="cw-row cw-justify-between">
+          <strong className="cw-text-primary">{workflowPhaseNames[booking.phase]}</strong>
+          <span className="cw-text-xs cw-text-muted">{formatBookingTime(booking.scheduledAt)}</span>
+        </div>
+        <div className="cw-text-sm cw-mt-4">
+          {booking.device}-{booking.port} | {booking.schemeTitle}
+        </div>
+        {booking.result && <div className="cw-text-xs cw-text-muted cw-mt-4">{booking.result}</div>}
+
+        {isUncertain && (
+          <div className="cw-mt-8">
+            <label className="cw-checkbox-row">
+              <input type="checkbox" disabled={busy} checked={!!uncertainChecks[booking.id]} onChange={e => setUncertainChecks(prev => ({ ...prev, [booking.id]: e.target.checked }))} />
+              <span className="cw-text-sm">已在官方平台查明结果</span>
+            </label>
+            <button className="cw-btn-primary cw-w-full cw-mt-8" disabled={busy || !uncertainChecks[booking.id]} onClick={() => {
+              if (window.confirm('旧请求不会再次发送，确定已核对？')) wrapAction('reviewUncertain', { id: booking.id, confirmedReview: true });
+            }}>确认核对完毕</button>
+          </div>
+        )}
+
+        {booking.notificationStatus === 'shown' && <p className="cw-text-xs cw-text-muted">已提交系统提醒</p>}
+        {booking.notificationStatus === 'failed' && <p className="cw-text-xs cw-text-warning">手机通知未发出，充电结果见上方</p>}
+        <div className="cw-booking-actions">
+          {isCancellable && (
+            <button className="cw-btn-secondary" disabled={busy} onClick={() => {
+              if (window.confirm('确定取消预约？')) wrapAction('cancel', { id: booking.id });
+            }}>取消</button>
+          )}
+          {isTerminal && notificationFailed && (
+            <button className="cw-btn-secondary" disabled={busy} onClick={() => wrapAction('retryNotification', { id: booking.id })}>重试通知</button>
+          )}
+        </div>
+      </div>
+    );
   };
 
-  const handleCancel = async (booking: WorkflowBooking) => {
-    const diff = new Date(booking.scheduledAt).getTime() - now;
-    if (booking.phase === "scheduled" && diff > 30000) {
-      if (window.confirm("确定要取消这个预约吗？不自动请求退款。")) {
-        await doAction("cancel", { id: booking.id });
-      }
-    }
-  };
-
-  const handleAccountConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!accountUrl) return;
-    if (await doAction("configureAccount", { url: accountUrl })) { setAccountUrl(""); setEditAccount(false); }
-  };
-
-  const handleMailConfig = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (await doAction("configureMail", mailConfig)) setMailConfig(prev => ({ ...prev, password: "" }));
-  };
-
-  const getBjTimeMs = (offsetMs: number) => {
-    return new Date(now + offsetMs + 8 * 3600000).toISOString().slice(0, 16);
-  };
+  const displayError = localError || state.error;
 
   return (
-    <div className="cw-container">
+    <div className="cw-app">
       <header className="cw-header">
-        <div className="cw-header-title">
-          <Zap className="cw-icon-primary" size={28} />
-          <h1>今晚接好，明早开电</h1>
+        <div className="cw-header-top">
+          <h1 className="cw-title">晨充</h1>
+          <span className="cw-subtitle">今晚接好，明早开电</span>
+          <button type="button" className="cw-badge cw-about" aria-label="查看使用场景" onClick={() => window.dispatchEvent(new Event('neptune-show-welcome'))}>使用介绍</button>
         </div>
-        <span className="cw-badge-local">本机保存</span>
+        <div className="cw-status-bar">
+          {state.executor.connected ? <Smartphone className="cw-icon-sm" /> : <WifiOff className="cw-icon-sm" />}
+          <span>{state.executor.connected ? '本机保存 · 已连接' : '网页预览 · 尚未启用后台预约'}</span>
+        </div>
       </header>
 
-      <div className="cw-layout">
-        <main className="cw-main-flow">
+      {displayError && (
+        <div className="cw-alert" role="alert">
+          <AlertTriangle className="cw-icon-sm" />
+          <span className="cw-flex-1">{displayError}</span>
+          {localError && <button aria-label="关闭错误提示" onClick={() => setLocalError("")}><X className="cw-icon-sm" /></button>}
+        </div>
+      )}
 
-          {(state.error || localError) && (
-            <div className="cw-alert cw-alert-error" role="alert">
-              <AlertCircle size={20} />
-              <div>
-                {state.error && <p>{state.error}</p>}
-                {localError && <p>{localError}</p>}
-              </div>
+      <section className="cw-section cw-socket-section">
+        <div className="cw-section-header">插座</div>
+        <div className="cw-row">
+          <label className="cw-btn-secondary cw-upload" title="上传插座二维码">
+            <Camera className="cw-icon" />
+            上传二维码
+            <input className="cw-file-input" aria-label="上传插座二维码" type="file" accept="image/png,image/jpeg,image/webp" disabled={busy} onChange={handleQrUpload}/>
+          </label>
+          <div className="cw-flex-1 cw-text-sm">
+            {state.target ? <strong className="cw-text-primary">{state.target.device}<br/>{state.target.port}号插座</strong> : <span className="cw-text-muted">或直接导入付款页链接</span>}
+          </div>
+        </div>
+        <details className="cw-details">
+          <summary>手动输入插座信息</summary>
+          <div className="cw-fold-content">
+            <div className="cw-row">
+              <input aria-label="官方二维码链接" disabled={busy} type="text" placeholder="官方二维码链接" className="cw-input cw-flex-1" value={manualUrl} onChange={e => setManualUrl(e.target.value)} />
+              <button className="cw-btn-secondary" disabled={busy || !manualUrl} onClick={async () => { if(await wrapAction('setTarget', { url: manualUrl })) setManualUrl(""); }}>确定</button>
             </div>
+            <div className="cw-row">
+              <input aria-label="标签上的10位插座编号" disabled={busy} inputMode="numeric" maxLength={10} type="text" placeholder="标签上的10位编号" className="cw-input cw-flex-1" value={manualNum} onChange={e => setManualNum(e.target.value)} />
+              <button className="cw-btn-secondary" disabled={busy || !manualNum} onClick={async () => { if(await wrapAction('setTarget', { number: manualNum })) setManualNum(""); }}>确定</button>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section className="cw-section cw-auth-section">
+        <div className="cw-section-header">付款账号授权</div>
+        {state.profile.accountBound && !editingAccount ? (
+          <div className="cw-row cw-justify-between">
+            <span className="cw-text-sm cw-text-primary">已保存在本机</span>
+            <button className="cw-btn-text" disabled={busy || !state.executor.connected} onClick={() => setEditingAccount(true)}>更换</button>
+          </div>
+        ) : (
+          <div className="cw-row">
+            <input aria-label="本人付款页授权链接" disabled={busy || !state.executor.connected} type="password" autoComplete="off" placeholder="粘贴付款页完整链接" className="cw-input cw-flex-1" value={accountUrl} onChange={e => setAccountUrl(e.target.value)} />
+            <button className="cw-btn-primary" disabled={busy || !state.executor.connected || !accountUrl} onClick={handleBindAccount}>保存</button>
+          </div>
+        )}
+        <details className="cw-details">
+          <summary aria-label="如何获取付款链接？">授权教程</summary>
+          <div className="cw-fold-content cw-text-xs cw-text-muted">
+            <ol><li>在微信扫一扫，或从相册识别插座二维码，进入尼普顿。</li><li>等本人付款页显示余额与方案，点右上角“…” → “复制链接”。</li><li>把完整链接粘贴到这里，点保存。首次仅核对账号与插座，不发起付款。</li></ol>
+            <p>插座二维码本身没有付款身份，不能代替授权；若链接缺少身份信息，请回微信重新进入付款页。导入后以付款页的插座为准，再核对编号。</p>
+            <p>完整链接包含本人付款授权，只存本机，请勿分享给他人。</p>
+          </div>
+        </details>
+      </section>
+
+      <section className="cw-section">
+        <div className="cw-section-header">方案 (核对后预约)</div>
+        {state.target && state.profile.accountBound ? (
+          isQuoteMatching ? (
+            <div className="cw-flex-col">
+              <div className="cw-row cw-justify-between cw-text-sm">
+                <span>余额: <strong className="cw-text-primary">{(state.quote!.balanceCents / 100).toFixed(2)}</strong> 元</span>
+                <button className="cw-btn-text" disabled={busy || !state.executor.connected} onClick={() => wrapAction('inspectTarget', {})}>重新核对</button>
+              </div>
+              {!state.quote!.available && <div className="cw-text-warning cw-text-sm cw-mt-4">插座暂不可用，请在微信核对</div>}
+              <select aria-label="充电方案" disabled={busy} className="cw-input cw-mt-8 cw-w-full" value={selectedSchemeId} onChange={e => setSelectedSchemeId(e.target.value)}>
+                {state.quote!.schemes.map(s => (
+                  <option key={s.id} value={s.id}>{s.title}</option>
+                ))}
+              </select>
+              {selectedScheme && <span className="cw-text-sm cw-text-muted cw-mt-4">预扣 {(selectedScheme.prepayCents / 100).toFixed(2)} 元 · {selectedScheme.description}</span>}
+            </div>
+          ) : (
+            <button className="cw-btn-secondary cw-w-full" disabled={busy || !state.executor.connected} onClick={() => wrapAction('inspectTarget', {})}>核对账号与插座</button>
+          )
+        ) : (
+          <div className="cw-text-sm cw-text-muted">请先识别插座并完成账号授权</div>
+        )}
+      </section>
+
+      <section className="cw-section">
+        <div className="cw-section-header">预约开电 (北京时间)</div>
+        <div className="cw-row">
+          <input aria-label="开电日期（北京时间）" disabled={busy} type="date" className="cw-input cw-flex-1" value={scheduleDate} onChange={e => setScheduleDate(e.target.value)} />
+          <input aria-label="开电时间（北京时间）" disabled={busy} type="time" className="cw-input cw-flex-1" value={scheduleTime} onChange={e => setScheduleTime(e.target.value)} />
+        </div>
+        <label className="cw-checkbox-row">
+          <input disabled={busy} type="checkbox" checked={confirmedPlug} onChange={e => setConfirmedPlug(e.target.checked)} />
+          <span className={`cw-text-sm ${confirmedPlug ? 'cw-text-primary' : ''}`}>车辆已接好，设备与插座编号无误</span>
+        </label>
+
+        {state.executor.connected && (!state.executor.exactAlarm || !state.executor.notifications) && (
+          <div className="cw-row cw-mt-8 cw-text-sm cw-text-warning cw-justify-between">
+            <span>缺少开电必备权限</span>
+            <button className="cw-btn-text" disabled={busy} onClick={() => {
+              if (!state.executor.notifications) wrapAction('openNotificationSettings', {});
+              else wrapAction('openAlarmSettings', {});
+            }}>去开启</button>
+          </div>
+        )}
+
+        <span className="cw-text-sm cw-text-muted">结果用手机通知，无需填写邮箱</span>
+        <button className="cw-btn-primary cw-w-full cw-btn-large" disabled={!canReserve} onClick={onReserve}>
+          {reserveButtonText}
+        </button>
+        {!state.executor.connected && (
+          <div className="cw-text-xs cw-text-muted cw-text-center">手机网页不能后台开电；请在安卓本机助手预约</div>
+        )}
+      </section>
+
+      {state.bookings.length > 0 && (
+        <section className="cw-section">
+          <div className="cw-section-header">最新记录</div>
+          {renderBooking(state.bookings[0], false)}
+          {state.bookings.length > 1 && (
+            <details className="cw-details cw-mt-8">
+              <summary>更多记录</summary>
+              <div className="cw-fold-content">
+                {state.bookings.slice(1).map(b => renderBooking(b, true))}
+              </div>
+            </details>
           )}
+        </section>
+      )}
 
-          <div className="cw-card cw-executor-card">
-            <div className="cw-card-header">
-              <Smartphone size={20} />
-              <h2>执行环境能力</h2>
+      <section className="cw-section">
+        <details className="cw-details">
+          <summary><Settings className="cw-icon-sm cw-mr-4" /> 高级与设置</summary>
+          <div className="cw-fold-content">
+            <div className="cw-setting-item cw-text-sm">
+              <span>单次金额上限 (元)</span>
+              <input aria-label="单次预扣上限（元）" disabled={busy} type="number" min="0.01" max="10" step="0.01" className="cw-input cw-w-24"
+                value={maxPrepayInput} onChange={e => setMaxPrepayInput(e.target.value)} />
             </div>
-            <div className="cw-card-body">
-              <p className="cw-text-muted">{state.executor.detail}</p>
-              <div className="cw-executor-actions">
-                {!state.executor.connected && (
-                  <a href="/downloads/neptune-local-assistant.apk" className="cw-btn cw-btn-outline" target="_blank" rel="noreferrer">
-                    <Download size={16} /> 下载安卓本机助手
-                  </a>
-                )}
-                {!state.executor.exactAlarm && state.executor.connected && (
-                  <button className="cw-btn cw-btn-outline" disabled={busy} onClick={() => doAction("openAlarmSettings", {})}>开启精确闹钟</button>
-                )}
-                {!state.executor.notifications && state.executor.connected && (
-                  <button className="cw-btn cw-btn-outline" disabled={busy} onClick={() => doAction("openNotificationSettings", {})}>开启通知权限</button>
-                )}
-                {state.executor.connected && (
-                  <button className="cw-btn cw-btn-text" disabled={busy} onClick={() => doAction("openBatterySettings", {})} title="确保后台运行和联网">电池与后台设置</button>
-                )}
-              </div>
-              {!state.executor.connected && state.executor.kind === "ios" && (
-                <p className="cw-text-sm cw-text-warn">iPhone执行入口尚未验证。</p>
-              )}
+            <div className="cw-setting-actions cw-mt-8">
+              <button className="cw-btn-secondary" disabled={busy || !state.executor.connected} onClick={() => wrapAction('openNotificationSettings', {})}>通知权限</button>
+              <button className="cw-btn-secondary" disabled={busy || !state.executor.connected} onClick={() => wrapAction('openAlarmSettings', {})}>闹钟权限</button>
+              <button className="cw-btn-secondary" disabled={busy || !state.executor.connected} onClick={() => wrapAction('openBatterySettings', {})}>后台运行</button>
             </div>
-          </div>
-
-          <div className="cw-step-card">
-            <div className="cw-step-header">
-              <div className="cw-step-number">1</div>
-              <h2>识别插座二维码</h2>
+            <div className="cw-text-xs cw-text-muted cw-mt-8">
+              锁屏后台需联网，关机或强制停止应用后无法执行。加密配置备份不含预约。
             </div>
-            <div className="cw-step-body">
-              {state.target ? (
-                <div className="cw-target-info">
-                  <CheckCircle2 className="cw-icon-success" size={24} />
-                  <div>
-                    <strong>设备: {state.target.device}</strong>
-                    <p>插座端口: {state.target.port} {state.target.label ? `(${state.target.label})` : ""}</p>
-                  </div>
-                  <button className="cw-btn cw-btn-icon" disabled={busy} onClick={() => doAction("setTarget", { url: "" })} title="重新选择">
-                    <XCircle size={20} />
-                  </button>
-                </div>
-              ) : (
-                <div className="cw-upload-area">
-                  <input type="file" id="qr-upload" className="cw-hidden-input" accept="image/png,image/jpeg,image/webp" onChange={handleFileChange} disabled={busy} ref={fileInputRef} />
-                  <label htmlFor="qr-upload" className={`cw-upload-label ${busy ? 'cw-disabled' : ''}`}>
-                    <Camera size={32} />
-                    <span>拍照 / 选择二维码图片</span>
-                  </label>
-                  <div className="cw-paste-toggle">
-                    <button className="cw-btn cw-btn-text" disabled={busy} onClick={() => setShowPaste(!showPaste)}>
-                      <LinkIcon size={16} /> {showPaste ? "收起链接输入" : "粘贴二维码链接"}
-                    </button>
-                  </div>
-                  {showPaste && (
-                    <form onSubmit={handlePasteSubmit} className="cw-paste-form">
-                      <input type="url" aria-label="二维码链接" className="cw-input" placeholder="https://..." value={pasteUrl} onChange={e => setPasteUrl(e.target.value)} disabled={busy} required />
-                      <button type="submit" className="cw-btn cw-btn-secondary" disabled={busy}>解析</button>
-                    </form>
-                  )}
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="cw-step-card">
-            <div className="cw-step-header">
-              <div className="cw-step-number">2</div>
-              <h2>选择充电方案</h2>
-            </div>
-            <div className="cw-step-body">
-              {!state.target ? (
-                <p className="cw-text-muted">请先完成第一步。</p>
-              ) : !isQuoteValid ? (
-                <div className="cw-quote-action">
-                  <p className="cw-text-muted">需核对账号与插座实时状态。</p>
-                  <button className="cw-btn cw-btn-secondary" disabled={busy || !state.profile.accountBound} onClick={() => doAction("inspectTarget", {})}>
-                    <RefreshCw size={16} /> 配置账号后核对插座
-                  </button>
-                </div>
-              ) : (
-                <div className="cw-schemes-list">
-                  <div className="cw-quote-summary">
-                    <span className="cw-badge-status">{state.quote?.businessOpen ? "营业中" : "尚未营业"} / {state.quote?.available ? "插座空闲" : "不可用"}</span>
-                    <span>账户余额: {((state.quote?.balanceCents || 0) / 100).toFixed(2)} 元</span>
-                  </div>
-                  <p className="cw-text-sm cw-text-muted">核对于 {state.quote && formatBookingTime(state.quote.checkedAt)}（北京时间）</p>
-                  <button className="cw-btn cw-btn-text" disabled={busy} onClick={() => doAction("inspectTarget", {})}><RefreshCw size={16} /> 重新核对插座</button>
-                  {state.quote?.schemes.map(s => (
-                    <label key={s.id} className={`cw-scheme-radio ${selectedSchemeId === s.id ? 'cw-selected' : ''}`}>
-                      <input type="radio" name="scheme" value={s.id} checked={selectedSchemeId === s.id} onChange={(e) => setSelectedSchemeId(e.target.value)} disabled={busy} />
-                      <div className="cw-scheme-content">
-                        <strong>{s.title}</strong>
-                        <p>{s.description}</p>
-                        <div className="cw-scheme-meta">
-                          <span>最长 {s.maxMinutes} 分钟</span>
-                          <span>预扣: {(s.prepayCents / 100).toFixed(2)} 元</span>
-                        </div>
-                      </div>
-                    </label>
-                  ))}
-                  <p className="cw-text-sm cw-text-muted"><Info size={14} /> 充满可提前停止，不承诺充满或到时一定结束。</p>
-                </div>
-              )}
-            </div>
-          </div>
-
-          <div className="cw-step-card">
-            <div className="cw-step-header">
-              <div className="cw-step-number">3</div>
-              <h2>预约时间与启动</h2>
-            </div>
-            <div className="cw-step-body">
-               <div className="cw-form-row">
-                 <div className="cw-input-group">
-                   <label htmlFor="cw-time" className="cw-label">北京时间</label>
-                   <input id="cw-time" type="datetime-local" className="cw-input cw-input-lg" value={scheduledStr} onChange={e => setScheduledStr(e.target.value)} disabled={busy} min={getBjTimeMs(60000)} max={getBjTimeMs(48 * 3600000)} required />
-                 </div>
-                 <div className="cw-input-group">
-                   <label htmlFor="cw-cap" className="cw-label">预扣上限 (元)</label>
-                   <input id="cw-cap" type="number" className="cw-input cw-input-lg" value={maxPrepayYuan} onChange={e => setMaxPrepayYuan(e.target.value)} disabled={busy} min="0.01" max="10.00" step="0.01" required />
-                 </div>
-               </div>
-
-               <label className="cw-checkbox-label cw-mt-4">
-                 <input type="checkbox" checked={confirmedPlug} onChange={e => setConfirmedPlug(e.target.checked)} disabled={busy} />
-                 <span className="cw-checkbox-text">我的车辆和充电器已接好，设备和插座无误。</span>
-               </label>
-
-               {confirmedPlug && isQuoteValid && selectedScheme && scheduledStr && (
-                 <div className="cw-review-box">
-                   <h4>预约信息核对</h4>
-                   <ul>
-                     <li><strong>插座:</strong> {state.target?.device} - {state.target?.port}</li>
-                     <li><strong>方案:</strong> {selectedScheme.title}</li>
-                     <li><strong>日期:</strong> {scheduledStr.replace('T', ' ')}</li>
-                     <li><strong>金额上限:</strong> {parseFloat(maxPrepayYuan).toFixed(2)} 元</li>
-                     <li><strong>通知接收:</strong> {state.profile.recipient || "未配置"}</li>
-                   </ul>
-                 </div>
-               )}
-
-               <button className="cw-btn cw-btn-primary cw-btn-block cw-mt-4" disabled={busy || !canReserve} onClick={handleReserve}>
-                 已接好，预约 {scheduledStr ? scheduledStr.split("T")[1] : "明天06:00"}
-               </button>
-               {hasActiveBooking && <p className="cw-text-warn cw-text-center cw-mt-2">已有进行中的预约，需等待其完成或取消。</p>}
-            </div>
-          </div>
-
-        </main>
-
-        <aside className="cw-sidebar">
-
-          <div className="cw-card">
-            <button type="button" className="cw-card-header cw-clickable cw-config-toggle" aria-expanded={showConfig} onClick={() => setShowConfig(!showConfig)}>
-              <div className="cw-header-left">
-                <Settings size={20} />
-                <h2>账号与通知设置</h2>
-              </div>
-              <span className="cw-text-sm">{showConfig ? "收起" : "展开"}</span>
-            </button>
-
-            {showConfig && (
-              <div className="cw-card-body cw-config-body">
-                {!state.executor.connected && <p className="cw-text-sm cw-text-muted">请在本机助手中配置账号和邮箱，信息不会上传到网站。</p>}
-                <fieldset className="cw-fieldset" disabled={busy || !state.executor.connected}>
-                  <legend>付款账号授权</legend>
-                  {state.profile.accountBound && !editAccount ? (
-                    <div><div className="cw-success-text"><CheckCircle2 size={16}/> 已配置账号</div><button type="button" className="cw-btn cw-btn-text" disabled={busy || hasActiveBooking} onClick={() => setEditAccount(true)}>更换账号授权</button></div>
-                  ) : (
-                    <form onSubmit={handleAccountConfig}>
-                      <p className="cw-text-sm cw-text-muted cw-mb-2">请在微信中打开付款页，复制完整链接导入一次。</p>
-                      <label htmlFor="cw-account-url" className="cw-label">本人付款页完整链接</label>
-                      <input id="cw-account-url" type="password" autoComplete="off" className="cw-input cw-mb-2" placeholder="粘贴完整的链接..." value={accountUrl} onChange={e => setAccountUrl(e.target.value)} disabled={busy} required />
-                      <button type="submit" className="cw-btn cw-btn-secondary cw-btn-block" disabled={busy}>导入授权</button>
-                    </form>
-                  )}
-                </fieldset>
-
-                <fieldset className="cw-fieldset cw-mt-4" disabled={busy || !state.executor.connected}>
-                  <legend>邮件通知配置</legend>
-                  {state.profile.mailConfigured && (
-                    <div className="cw-success-text cw-mb-2"><CheckCircle2 size={16}/> 当前接收: {state.profile.recipient}</div>
-                  )}
-                  <form onSubmit={handleMailConfig}>
-                    <div className="cw-form-row">
-                      <div className="cw-input-group">
-                         <label htmlFor="cw-recipient" className="cw-label">收件人</label>
-                         <input id="cw-recipient" type="email" className="cw-input" value={mailConfig.recipient} onChange={e => setMailConfig({...mailConfig, recipient: e.target.value})} disabled={busy} required />
-                      </div>
-                      <div className="cw-input-group">
-                         <label htmlFor="cw-sender" className="cw-label">发件人</label>
-                         <input id="cw-sender" type="email" className="cw-input" value={mailConfig.sender} onChange={e => setMailConfig({...mailConfig, sender: e.target.value})} disabled={busy} required />
-                      </div>
-                    </div>
-                    <div className="cw-form-row">
-                      <div className="cw-input-group">
-                         <label htmlFor="cw-smtp-host" className="cw-label">SMTP 服务器</label>
-                         <input id="cw-smtp-host" type="text" className="cw-input" value={mailConfig.host} onChange={e => setMailConfig({...mailConfig, host: e.target.value})} disabled={busy} required />
-                      </div>
-                      <div className="cw-input-group">
-                         <label htmlFor="cw-smtp-port" className="cw-label">加密端口</label>
-                         <input id="cw-smtp-port" type="number" className="cw-input" value={465} readOnly disabled={busy} required />
-                      </div>
-                    </div>
-                    <div className="cw-input-group cw-mt-2">
-                       <label htmlFor="cw-smtp-secret" className="cw-label">SMTP 授权码 (非邮箱密码)</label>
-                       <input id="cw-smtp-secret" type="password" autoComplete="off" className="cw-input" value={mailConfig.password} onChange={e => setMailConfig({...mailConfig, password: e.target.value})} disabled={busy} required />
-                    </div>
-                    <p className="cw-text-sm cw-text-muted cw-mt-2">配置加密存本机。</p>
-                    <button type="submit" className="cw-btn cw-btn-secondary cw-btn-block cw-mt-2" disabled={busy}>保存通知配置</button>
-                  </form>
-                </fieldset>
-
-                <button className="cw-btn cw-btn-text cw-btn-block cw-mt-4" disabled={busy || !state.executor.connected} onClick={() => doAction("exportBackup", {})}>
-                  <Download size={16}/> 导出配置加密备份
-                </button>
+            {state.executor.connected && (
+              <div className="cw-setting-actions cw-mt-8">
+                <button className="cw-btn-secondary" disabled={busy} onClick={() => wrapAction('exportBackup', {})}>导出配置</button>
+                <button className="cw-btn-secondary" disabled={busy} onClick={() => wrapAction('restoreBackup', {})}>恢复配置</button>
               </div>
             )}
           </div>
-
-          <div className="cw-card cw-records-card">
-            <div className="cw-card-header">
-              <div className="cw-header-left">
-                <History size={20} />
-                <h2>预约记录</h2>
-              </div>
-              <button className="cw-btn cw-btn-icon" disabled={busy} onClick={() => doAction("refresh", {})} title="刷新">
-                <RefreshCw size={18} />
-              </button>
-            </div>
-            <div className="cw-card-body cw-records-list">
-              {state.bookings.length === 0 ? (
-                <p className="cw-text-muted cw-text-center">暂无记录</p>
-              ) : (
-                state.bookings.map(b => {
-                  const isCancelable = b.phase === "scheduled" && (new Date(b.scheduledAt).getTime() - now > 30000);
-                  return (
-                    <div key={b.id} className="cw-record-item">
-                      <div className="cw-record-head">
-                        <span className={`cw-phase-badge cw-phase-${b.phase}`}>{workflowPhaseNames[b.phase] || b.phase}</span>
-                        <span className="cw-record-time">{formatBookingTime(b.scheduledAt)}</span>
-                      </div>
-                      <div className="cw-record-details">
-                        <p>{b.device} - {b.port} | {b.schemeTitle}</p>
-                        {b.result && <p className="cw-record-result">{b.result}</p>}
-                        <div className="cw-record-meta">
-                           <span>通知: {mailStatusMap[b.mailStatus] || b.mailStatus}</span>
-                           {b.phase === "uncertain" && <button className="cw-btn cw-btn-outline cw-btn-sm" disabled={busy || !state.executor.connected} onClick={async () => { if (window.confirm("确认你已在微信核对上次订单与扣款，并且当前没有本人充电中的订单？旧请求不会重发。")) await doAction("reviewUncertain", {id:b.id,confirmedReview:true}); }}>已在微信核对</button>}
-                           {b.mailStatus === "failed" && <button className="cw-btn cw-btn-outline cw-btn-sm" disabled={busy || !state.executor.connected} onClick={() => doAction("retryMail", {id:b.id})}>重试结果邮件</button>}
-                           {isCancelable && (
-                             <button className="cw-btn cw-btn-danger cw-btn-sm" disabled={busy} onClick={() => handleCancel(b)}>取消</button>
-                           )}
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
-          </div>
-
-        </aside>
-      </div>
+        </details>
+      </section>
     </div>
   );
 }

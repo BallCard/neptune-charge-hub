@@ -5,7 +5,7 @@ $taskJavaBin=Split-Path -Parent $taskPaths.java
 $taskJson=Join-Path $taskRoot '.local/android-toolchain/json-test.jar'
 $taskClasses=Join-Path $taskRoot '.local/android-core-tests'
 New-Item -ItemType Directory -Path $taskClasses -Force | Out-Null
-$taskSources=@('Checks.java','Platform.java','ChargeRunner.java','ResultMail.java','BackupCodec.java') | ForEach-Object {Join-Path $taskRoot ('native/android/src/cn/neptune/local/'+$_)}
+$taskSources=@('Checks.java','Platform.java','ChargeRunner.java','ResultMail.java','NotificationResult.java','BackupCodec.java') | ForEach-Object {Join-Path $taskRoot ('native/android/src/cn/neptune/local/'+$_)}
 $taskTest=Join-Path $taskRoot 'native/android/tests/cn/neptune/local/CoreTests.java'
 & (Join-Path $taskJavaBin 'javac.exe') '-J-Duser.language=en' -encoding UTF-8 -source 8 -target 8 '-Xlint:-options' -classpath $taskJson -d $taskClasses @taskSources $taskTest
 if($LASTEXITCODE -ne 0){throw 'Isolated Android core tests compilation failed.'}
