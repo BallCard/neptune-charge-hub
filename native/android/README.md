@@ -1,6 +1,6 @@
 # Android 本机执行器
 
-测试版0.3.0-test，包名 `cn.neptune.local`，Android8/API26起、目标API35。前端和ZXing-WASM内置于APK，Vercel只分发程序。已完成编译、签名和离线核心验证；安装、WebView、权限、锁屏、真实开电与系统通知仍需实机验收。
+测试版0.3.1-test，包名 `cn.neptune.local`，Android8/API26起、目标API35。前端和ZXing-WASM内置于APK，Vercel只分发程序。打包器统一ZIP条目斜杠路径，并核对页面与识别器的字节校验值。已完成编译、签名和离线核心验证；安装、WebView、权限、锁屏、真实开电与系统通知仍需实机验收。
 
 项目根先 `npm ci`、`npm run build`，依次运行 `scripts/prepare-android-toolchain.ps1`、`scripts/test-android-core.ps1`、`scripts/build-android.ps1`，最后再 `npm run build` 供网页分发最新APK。完整命令见[项目入口](../../README.md)。
 
