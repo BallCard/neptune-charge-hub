@@ -8,7 +8,7 @@ const REQUEST_TIMEOUT_MS = 10_000;
 const MAX_AMOUNT_CENTS = 10_000_000;
 export const PRICE_FIELDS = ["efee", "eCharge", "serviceCharge", "efee_l", "eCharge_l", "serviceCharge_l"] as const;
 export type Prices = Record<(typeof PRICE_FIELDS)[number], number>;
-export type Target = { device: string; port: string; prices?: Prices };
+export type Target = { device: string; port: string; areaId?: number; prices?: Prices };
 export type AccountConfig = {
   openId: string;
   employeeId: number;
@@ -32,7 +32,7 @@ export type LiveSnapshot = {
 export type TargetSnapshot = LiveSnapshot & {
   target: { device: string; port: string };
   prices: Prices;
-  fullStopMinutes: 480;
+  fullStopMinutes: number;
 };
 type Form = Record<string, string | number>;
 type JsonObject = Record<string, unknown>;
@@ -49,6 +49,7 @@ export type PreparedCharge = {
   acknowledged: boolean;
   msgflag: string | null;
   verificationDisabled: boolean;
+  timedMinutes?: number;
 };
 export type SubmissionResult = { status: "pending" | "rejected" | "uncertain"; msgflag: string | null; message: string };
 export type VerificationResult = {
@@ -76,7 +77,7 @@ function integer(value: unknown, label: string, minimum = 0, maximum = MAX_AMOUN
 function checkedTarget(target: Target): Target {
   if (!target || !/^\d{8}$/.test(target.device) || !/^\d{1,2}$/.test(target.port)) throw new NeptuneError("设备编号或插座号格式不正确。");
   const port = integer(target.port, "插座", 1, 99).toString().padStart(2, "0");
-  return { device: target.device, port, ...(target.prices ? { prices: checkedPrices(target.prices) } : {}) };
+  return { device: target.device, port, ...(target.areaId ? { areaId: integer(target.areaId, "区域", 1) } : {}), ...(target.prices ? { prices: checkedPrices(target.prices) } : {}) };
 }
 function checkedPrices(value: unknown): Prices {
   if (!object(value)) throw new NeptuneError("尚未保存目标设备的收费标准，请先核对。");
@@ -148,7 +149,10 @@ async function call(endpoint: string, form: Form, chargePermission = false): Pro
       if (size > MAX_RESPONSE_BYTES) { await reader.cancel(); throw new Error("size limit"); }
       chunks.push(part.value);
     }
-    const text = Buffer.concat(chunks).toString("utf8");
+    const bytes = new Uint8Array(size);
+    let offset = 0;
+    for (const chunk of chunks) { bytes.set(chunk, offset); offset += chunk.byteLength; }
+    const text = new TextDecoder().decode(bytes);
     const result: unknown = JSON.parse(text);
     if (!object(result)) throw new Error("object required");
     return result;
@@ -171,12 +175,9 @@ function matchedIdentity(user: JsonObject, config: AccountConfig): number {
   return integer(user.readyaccountmoney, "余额");
 }
 async function readAccount(config: AccountConfig): Promise<AccountSnapshot> {
-  const [userResult, messageResult] = await Promise.all([
-    call("getUserInfo", { openId: config.openId, areaId: config.areaId }),
-    call("getMsgs", { employeeid: config.employeeId, areaid: config.areaId }),
-  ]);
-  const user = objectResponse(userResult, "账户"), messages = objectResponse(messageResult, "实名状态");
+  const user = objectResponse(await call("getUserInfo", { openId: config.openId, areaId: config.areaId }), "账户");
   const balanceCents = matchedIdentity(user, config);
+  const messages = objectResponse(await call("getMsgs", { employeeid: config.employeeId, areaid: config.areaId }), "实名状态");
   const phoneBound = /^\d{11}$/.test(String(messages.telphone ?? ""));
   if (String(messages.registrationCz) === "1" && !phoneBound) throw new NeptuneError("平台要求先绑定手机号，请在微信完成。");
   return { balanceCents, phoneBound, verified: true };
@@ -184,16 +185,17 @@ async function readAccount(config: AccountConfig): Promise<AccountSnapshot> {
 export async function inspectAccount(config: AccountConfig): Promise<AccountSnapshot> {
   return readAccount(checkedConfig(config));
 }
-function packageChecks(device: JsonObject): void {
-  const known = { devtypeid: 40, measure: 1, isuse: 1, countPay: 1, yuan5: 1, ycTime: 480 };
+function packageChecks(device: JsonObject, web = false): void {
+  const known = web ? { devtypeid: 40, measure: 1, isuse: 1, countPay: 1 } : { devtypeid: 40, measure: 1, isuse: 1, countPay: 1, yuan5: 1, ycTime: 480 };
   for (const [key, value] of Object.entries(known)) {
     if (integer(device[key], "套餐") !== value) throw new NeptuneError("设备、付款方式或套餐已改变，需要重新核对。", "package");
   }
   integer(device.safeCharge, "安全充电模式");
+  if (web) webCatalog(device);
 }
-function deviceChecks(device: JsonObject, target: Target): { prices: Prices; prepayCents: number; portAvailable: boolean; businessOpen: boolean } {
+function deviceChecks(device: JsonObject, target: Target, web = false): { prices: Prices; prepayCents: number; portAvailable: boolean; businessOpen: boolean } {
   if (String(device.devaddress) !== target.device) throw new NeptuneError("设备核对失败。");
-  packageChecks(device);
+  packageChecks(device, web);
   const prices = checkedPrices(device), prepayCents = integer(device.yk, "预扣金额", 1);
   if (typeof device.portstatur !== "string" || !/^[0-9]+$/.test(device.portstatur) || Number(target.port) > device.portstatur.length) throw new NeptuneError("插座号不在设备范围内或状态格式异常。");
   if (![0, 1, "0", "1"].includes(device.isWorkTime as number | string)) throw new NeptuneError("营业状态格式异常。");
@@ -204,18 +206,78 @@ function safePower(order: JsonObject | null, matched: boolean): number | null {
   const power = Number(order.power);
   return Number.isFinite(power) && power >= 0 && power <= MAX_AMOUNT_CENTS ? power : null;
 }
-async function readSnapshot(config: AccountConfig, target: Target) {
+async function readSnapshot(config: AccountConfig, target: Target, web = false) {
+  if (target.areaId && target.areaId !== config.areaId) throw new NeptuneError("插座区域与当前授权不同，请在微信重新授权。");
   const [account, deviceResult, order] = await Promise.all([
     readAccount(config), call("getDeviceInfo", { areaId: config.areaId, devaddress: target.device }), activeOrder(config),
   ]);
-  const device = objectResponse(deviceResult, "设备"), details = deviceChecks(device, target), matched = matching(order, target);
+  const device = objectResponse(deviceResult, "设备"), details = deviceChecks(device, target, web), matched = matching(order, target);
   const snapshot: TargetSnapshot = {
     connected: true, updatedAt: new Date().toISOString(), balanceCents: account.balanceCents,
     prepayCents: details.prepayCents, businessOpen: details.businessOpen, portAvailable: details.portAvailable,
     activeOrder: matched, otherOrder: !!order && !matched, powerWatts: safePower(order, matched),
-    target: { device: target.device, port: target.port }, prices: details.prices, fullStopMinutes: 480,
+    target: { device: target.device, port: target.port }, prices: details.prices, fullStopMinutes: integer(device.ycTime, "时长", 1, 1440),
   };
   return { snapshot, device };
+}
+
+export type WebScheme = { id: string; title: string; description: string; maxMinutes: number; prepayCents: number };
+export type WebQuote = { device: string; port: string; checkedAt: string; balanceCents: number; businessOpen: boolean; available: boolean; fingerprint: string; schemes: WebScheme[] };
+function webCatalog(device: JsonObject): WebScheme[] {
+  const max = integer(device.ycTime, "方案时长", 1, 1440), prepay = integer(device.yk, "预扣", 1, 10000);
+  const full = integer(device.yuan5 ?? 0, "自停方案", 0, 1), timed = integer(device.yuan11 ?? 0, "定时方案", 0, 1);
+  const schemes: WebScheme[] = [];
+  if (full) schemes.push({ id: 'full-stop', title: `充满自停 · 最长${max}分钟`, description: '充满或保护触发可提前停止，以平台订单为准。', maxMinutes: max, prepayCents: prepay });
+  if (timed) for (const minutes of [60,120,240,360]) if (minutes <= max) schemes.push({ id: `minutes-${minutes}`, title: `${minutes}分钟方案`, description: '保留平台断电保护，不保证车辆一定充满。', maxMinutes: minutes, prepayCents: prepay });
+  if (!schemes.length) throw new NeptuneError('此设备没有已支持的充电方案。', 'package');
+  return schemes;
+}
+function webFingerprint(target: Target, device: JsonObject): string {
+  const fields = [...PRICE_FIELDS, 'devtypeid','measure','isuse','countPay','yuan5','yuan11','ycTime','yk','safeCharge'];
+  const recipe = fields.map(key => `${key}=${integer(device[key] ?? (['yuan5','yuan11'].includes(key) ? 0 : undefined), '收费与方案')}`);
+  recipe.push(`device=${target.device}`, `port=${target.port}`);
+  return createHash('sha256').update(recipe.join('|')).digest('hex');
+}
+export async function inspectWebTarget(rawConfig: AccountConfig, rawTarget: Target): Promise<{ quote: WebQuote; target: Target; snapshot: TargetSnapshot; safeCharge: number }> {
+  const config = checkedConfig(rawConfig), target = checkedTarget(rawTarget);
+  const { snapshot, device } = await readSnapshot(config, target, true);
+  return { snapshot, safeCharge: integer(device.safeCharge, '安全模式'), target: { ...target, prices: snapshot.prices }, quote: { device: target.device, port: target.port,
+    checkedAt: snapshot.updatedAt, balanceCents: snapshot.balanceCents, businessOpen: snapshot.businessOpen,
+    available: snapshot.portAvailable && !snapshot.activeOrder && !snapshot.otherOrder,
+    fingerprint: webFingerprint(target, device), schemes: webCatalog(device) } };
+}
+export async function checkWebReservation(config: AccountConfig, target: Target, schemeId: string, fingerprint: string, cap: number) {
+  const checked = await inspectWebTarget(config, target);
+  const selected = checked.quote.schemes.find(s => s.id === schemeId);
+  if (!selected || checked.quote.fingerprint !== fingerprint) throw new NeptuneError('方案或收费标准已改变，请重新核对。', 'prices');
+  if (!checked.quote.available) throw new NeptuneError('本人已有订单或插座不可用，停止新建预约。', 'occupied');
+  if (!Number.isSafeInteger(cap) || cap < selected.prepayCents || cap > 1000) throw new NeptuneError('预扣上限不足或不正确。', 'prepay');
+  if (checked.quote.balanceCents < Math.max(200, selected.prepayCents)) throw new NeptuneError('本人余额不足，请在微信充值。', 'balance');
+  return { ...checked, selected };
+}
+export async function prepareWebCharge(config: AccountConfig, target: Target, schemeId: string, fingerprint: string, cap: number): Promise<PreparedCharge> {
+  const checked = await checkWebReservation(config, target, schemeId, fingerprint, cap);
+  if (!checked.quote.businessOpen) throw new NeptuneError('平台尚未恢复营业。', 'closed');
+  const frozen = checkedTarget(target), expected = checkedPrices(frozen.prices);
+  if (PRICE_FIELDS.some(key => expected[key] !== checked.snapshot.prices[key])) throw new NeptuneError('收费标准已改变。', 'prices');
+  const timedMinutes = schemeId === 'full-stop' ? undefined : checked.selected.maxMinutes;
+  return { version: 1, config: checkedConfig(config), target: frozen, preparedAt: new Date().toISOString(), submitted: false,
+    acknowledged: false, msgflag: null, verificationDisabled: false, prepayCents: checked.selected.prepayCents, maxPrepayCents: cap,
+    ...(timedMinutes ? { timedMinutes } : {}), payload: { devaddress: frozen.device, port: frozen.port, money: 7,
+      areaId: config.areaId, openId: config.openId, beforemoney: checked.quote.balanceCents, devtypeid: 40, fullStop: 0, payType: 1,
+      safeOpen: 0, safeCharge: checked.safeCharge, edtType: 0, efee: expected.efee,
+      eCharge: expected.eCharge, serviceCharge: expected.serviceCharge, yuan7: timedMinutes ?? 0 } };
+}
+export async function inspectOwnOrder(rawConfig: AccountConfig, rawTarget: Target) {
+  const order = await activeOrder(checkedConfig(rawConfig)), target = checkedTarget(rawTarget);
+  const matched = matching(order, target);
+  return { any: !!order, matched, powerWatts: safePower(order, matched) };
+}
+export async function probePublicDevice(rawTarget: Target) {
+  const target=checkedTarget(rawTarget);
+  const device=objectResponse(await call('getDeviceInfo',{devaddress:target.device,...(target.areaId?{areaId:target.areaId}:{})}), '设备');
+  if(String(device.devaddress)!==target.device)throw new NeptuneError('公开设备身份核对失败。');
+  return {reachable:true,device:target.device};
 }
 export async function inspectTarget(config: AccountConfig, target: Target): Promise<TargetSnapshot> {
   return (await readSnapshot(checkedConfig(config), checkedTarget(target))).snapshot;
@@ -225,11 +287,11 @@ export async function readLive(config: AccountConfig, target: Target): Promise<L
   const { target: _target, prices: _prices, fullStopMinutes: _minutes, ...live } = snapshot;
   return live;
 }
-async function checkedChargeSnapshot(rawConfig: AccountConfig, rawTarget: Target, maxPrepayCents: number) {
+async function checkedChargeSnapshot(rawConfig: AccountConfig, rawTarget: Target, maxPrepayCents: number, web = false) {
   const config = checkedConfig(rawConfig), target = checkedTarget(rawTarget);
   const cap = integer(maxPrepayCents, "预扣上限", 1);
   const expected = checkedPrices(target.prices ?? (target.device === config.defaultTarget.device ? config.prices : undefined));
-  const { snapshot, device } = await readSnapshot(config, target);
+  const { snapshot, device } = await readSnapshot(config, target, web);
   if (PRICE_FIELDS.some(key => snapshot.prices[key] !== expected[key])) throw new NeptuneError("收费标准已改变，请重新核对并确认。", "prices");
   if (snapshot.prepayCents > cap) throw new NeptuneError("预扣金额超过设置的上限，停止操作。", "prepay");
   if (snapshot.balanceCents < snapshot.prepayCents) throw new NeptuneError("账户余额不足，请在微信充值。", "balance");
@@ -258,12 +320,13 @@ function preparedChecks(prepared: PreparedCharge): void {
   if (!prepared || prepared.version !== 1 || !object(prepared.payload)) throw new NeptuneError("充电请求状态异常。");
   const config = checkedConfig(prepared.config), target = checkedTarget(prepared.target), prices = checkedPrices(target.prices);
   const constants: Form = { devaddress: target.device, port: target.port, openId: config.openId, areaId: config.areaId,
-    money: 7, devtypeid: 40, fullStop: 0, payType: 1, safeOpen: 0, edtType: 0, yuan7: 0,
+    money: 7, devtypeid: 40, fullStop: 0, payType: 1, safeOpen: 0, edtType: 0, yuan7: prepared.timedMinutes ?? 0,
     efee: prices.efee, eCharge: prices.eCharge, serviceCharge: prices.serviceCharge };
   if (Object.entries(constants).some(([key, value]) => prepared.payload[key] !== value) ||
       Object.keys(prepared.payload).length !== Object.keys(constants).length + 2 ||
       "msgflag" in prepared.payload) throw new NeptuneError("充电请求参数与已核对的套餐不符。");
   integer(prepared.payload.safeCharge, "安全充电模式");
+  if (prepared.timedMinutes !== undefined && ![60,120,240,360].includes(prepared.timedMinutes)) throw new NeptuneError("充电时长与已支持方案不符。");
   const prepay = integer(prepared.prepayCents, "预扣金额", 1), cap = integer(prepared.maxPrepayCents, "预扣上限", 1);
   if (prepay > cap || integer(prepared.payload.beforemoney, "余额") < prepay) throw new NeptuneError("充电金额核对失败。");
   if (typeof prepared.submitted !== "boolean" || typeof prepared.acknowledged !== "boolean" || typeof prepared.verificationDisabled !== "boolean") throw new NeptuneError("充电请求状态异常。");

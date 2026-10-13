@@ -12,7 +12,7 @@ const safeState = z.object({
     phase: z.enum(["scheduled","waiting","checking","submitting","pending","confirmed","already-charging","cancelled","failed","uncertain","reviewed","rejected","missed","scheduling-failed"]), result: z.string().max(600), mailStatus: z.enum(["queued","sent","failed","uncertain","not-required"]), notificationStatus: z.enum(["queued","shown","failed","not-required"]).optional() })).max(200),
 });
 export function nativeAvailable() { return typeof window !== "undefined" && typeof window.NeptuneNative?.request === "function"; }
-export function nativeAction(action: string, payload: Record<string, unknown> = {}): Promise<WorkflowState> {
+export function nativeQuery(action: string, payload: Record<string, unknown> = {}): Promise<unknown> {
   if (!nativeAvailable()) return Promise.reject(new Error("请在安卓本机助手中配置和预约。手机网页不能独立后台开电。"));
   return new Promise((resolve,reject) => {
     const id = crypto.randomUUID();
@@ -22,9 +22,13 @@ export function nativeAction(action: string, payload: Record<string, unknown> = 
       const detail = (event as CustomEvent<{id?: string; error?: string; state?: unknown}>).detail;
       if (detail?.id !== id) return; clean();
       if (detail.error) { reject(new Error(detail.error)); return; }
-      try { resolve(safeState.parse(detail.state)); } catch { reject(new Error("本机执行端返回格式异常，请重新打开助手。")); }
+      resolve(detail.state);
     };
     window.addEventListener("neptune-native-result",done);
     try { window.NeptuneNative!.request(JSON.stringify({id,action,payload})); } catch { clean(); reject(new Error("无法连接本机执行端。")); }
   });
+}
+export async function nativeAction(action: string, payload: Record<string, unknown> = {}): Promise<WorkflowState> {
+  const result=await nativeQuery(action,payload);
+  try{return safeState.parse(result);}catch{throw new Error("本机执行端返回格式异常，请重新打开助手。");}
 }

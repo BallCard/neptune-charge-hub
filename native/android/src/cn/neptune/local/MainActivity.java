@@ -31,7 +31,13 @@ public final class MainActivity extends Activity {
         web.setOnApplyWindowInsetsListener((view,insets)->{view.setPadding(insets.getSystemWindowInsetLeft(),insets.getSystemWindowInsetTop(),insets.getSystemWindowInsetRight(),insets.getSystemWindowInsetBottom());return insets;});
         web.addJavascriptInterface(new Bridge(),"NeptuneNative");
         web.setWebViewClient(new WebViewClient(){
-            public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){return !request.getUrl().toString().startsWith(ORIGIN+"/");}
+            public boolean shouldOverrideUrlLoading(WebView view,WebResourceRequest request){
+                Uri uri=request.getUrl();
+                if("https".equals(uri.getScheme())&&"app.neptune.local".equals(uri.getHost()))return false;
+                if(request.isForMainFrame()&&"GET".equals(request.getMethod())&&"https".equals(uri.getScheme())&&java.util.Arrays.asList("uri.amap.com","api.map.baidu.com","neptune-charge-hub.vercel.app").contains(uri.getHost()))
+                    try{startActivity(new Intent(Intent.ACTION_VIEW,uri));}catch(Exception e){Toast.makeText(MainActivity.this,"没有可打开此链接的应用。",Toast.LENGTH_SHORT).show();}
+                return true;
+            }
             public WebResourceResponse shouldInterceptRequest(WebView view,WebResourceRequest request){
                 Uri uri=request.getUrl();
                 if(!"https".equals(uri.getScheme())||!"app.neptune.local".equals(uri.getHost())||!"GET".equals(request.getMethod()))return denied();
@@ -77,6 +83,12 @@ public final class MainActivity extends Activity {
                     else if(action.equals("openBatterySettings")){runOnUiThread(()->startActivity(new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS,Uri.parse("package:"+getPackageName()))));}
                     else if(action.equals("exportBackup")){runOnUiThread(()->passwordDialog(false));}
                     else if(action.equals("restoreBackup")){runOnUiThread(()->passwordDialog(true));}
+                    else if(action.equals("nearbyStatus")){
+                        try(InputStream in=getAssets().open("web/nearby/stations.json")){
+                            ByteArrayOutputStream out=new ByteArrayOutputStream();byte[] buffer=new byte[4096];int size;while((size=in.read(buffer))!=-1){if(out.size()+size>100000)throw new Exception("站点清单过大。");out.write(buffer,0,size);}
+                            reply(id,NearbyStatus.read(new JSONArray(new String(out.toByteArray(),StandardCharsets.UTF_8)),Platform::request),null);return;
+                        }
+                    }
                     else{reply(id,controller.action(action,input),null);return;}
                     reply(id,controller.status(),null);
                 }catch(Exception error){reply(id,null,"操作未完成："+(error.getMessage()==null?"请核对输入或本机权限。":error.getMessage()));}

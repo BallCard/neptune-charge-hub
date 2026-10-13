@@ -1,7 +1,7 @@
 ﻿{
     "realDeviceValidated":  false,
     "apk":  "neptune-local-assistant.apk",
-    "version":  "0.3.1-test",
-    "bytes":  1907840,
-    "sha256":  "752664a204ddaf1e73053c4933c7b80741c991de1a786b36b2d610c8804d8ff2"
+    "version":  "0.4.0-test",
+    "bytes":  1948877,
+    "sha256":  "58ba26283d759b5bec2cc778b69b3241ba5c03bd3a3f1ab0bfd3f9826f91be62"
 }

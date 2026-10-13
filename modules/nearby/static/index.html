@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#f7f5f0">
+<title>玉泉充电桩 · 附近空位</title>
+<style>
+:root{--paper:#f7f5f0;--ink:#202820;--muted:#686c63;--line:#dedfd5;--card:#fffefa;--sage:#466b4d;--sage-soft:#eaf0e6;--clay:#ad4831;--amber:#91601d}
+*{box-sizing:border-box}body{margin:0;background:var(--paper);color:var(--ink);font-family:-apple-system,BlinkMacSystemFont,"PingFang SC","Microsoft YaHei",sans-serif;-webkit-tap-highlight-color:transparent}button,select,summary{font:inherit;color:inherit}button,select,input{min-height:44px;border:1px solid var(--line);border-radius:12px;background:var(--card);padding:10px 14px;color:inherit;font:inherit}button{cursor:pointer}button:disabled{opacity:.6;cursor:wait}:focus-visible{outline:3px solid #598663;outline-offset:3px}a{color:var(--sage)}main{max-width:1000px;margin:auto;padding:0 24px 40px}.top{position:sticky;top:0;z-index:2;background:var(--paper);display:flex;align-items:center;justify-content:space-between;gap:12px;padding:16px 0 12px;border-bottom:1px solid var(--line)}.brand{font-size:17px;font-weight:700;letter-spacing:.02em}.campus{font-size:11px;font-weight:500;color:var(--muted);margin-left:8px}.status{display:flex;align-items:center;gap:6px;color:var(--muted);font-size:11px;margin-top:6px;min-height:15px}.dot{width:6px;height:6px;flex:none;border-radius:50%;background:#999}.online .dot{background:var(--sage)}.error .dot{background:var(--clay)}.location{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:18px 0 14px}.location-copy{min-width:0}.location-title{font-size:14px;font-weight:650;margin:0 0 5px}.location-note{font-size:12px;color:var(--muted);line-height:1.55;margin:0}.locate{flex:none;background:var(--sage);border-color:var(--sage);color:white;font-size:13px;font-weight:600}.notice{background:#f8e8df;color:#803e2b;border:1px solid #edd0be;padding:12px;border-radius:12px;font-size:12px;line-height:1.6;margin:0 0 12px;overflow-wrap:anywhere}.notice[hidden]{display:none}.toolbar{display:flex;gap:10px;margin:0 0 14px}.toolbar input{flex:1;min-width:0}.toolbar select{flex:none;max-width:140px}.section-bar{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:0 0 12px}.section-bar h1{font-size:15px;margin:0;font-weight:650}.hint{font-size:11px;color:var(--muted);margin-top:4px}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;align-items:start}.station{min-width:0;background:var(--card);border:1px solid var(--line);border-radius:16px;overflow:hidden}.station.recommended{border-color:#6b9271}.recommend-label{font-size:11px;color:var(--sage);background:var(--sage-soft);padding:8px 16px;font-weight:650}.station summary{list-style:none;cursor:pointer;padding:16px;min-height:104px}.station summary::-webkit-details-marker{display:none}.station-head{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}.station-name{font-size:15px;font-weight:650;line-height:1.5;overflow-wrap:anywhere}.station-meta{color:var(--muted);font-size:11px;line-height:1.6;margin-top:5px}.station-alias{color:var(--muted);font-size:11px;line-height:1.6;margin-top:2px}.distance{color:var(--sage);font-weight:600}.availability{color:var(--sage);white-space:nowrap;text-align:right;flex:none;font-size:11px}.availability strong{display:block;font-size:28px;line-height:1.1;font-variant-numeric:tabular-nums;letter-spacing:-.04em}.availability.unavailable{color:var(--muted)}.station-bottom{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:14px;font-size:11px;color:var(--muted)}.station-bottom .alert{color:var(--clay)}.expand{white-space:nowrap}.expand::after{content:' ＋';font-size:15px}.station[open] .expand::after{content:' −'}.devices{padding:0 16px 16px;display:grid;gap:14px}.nav{display:flex;gap:8px}.nav a{flex:1;display:grid;place-items:center;min-height:44px;padding:0 6px;border:1px solid #cfe0cb;border-radius:12px;background:var(--sage-soft);color:var(--sage);font-size:12px;font-weight:650;text-decoration:none;text-align:center}.nav a:active{filter:brightness(.97)}.device{border-top:1px solid var(--line);padding-top:13px}.device-head{display:flex;justify-content:space-between;align-items:center;gap:8px;font-size:11px;line-height:1.5}.device-head b{font-weight:600;overflow-wrap:anywhere}.device-state{color:var(--muted);text-align:right}.device-state.error{color:var(--clay)}.counts{display:flex;flex-wrap:wrap;gap:12px;font-size:11px;color:var(--muted);margin-top:8px}.counts .free{color:var(--sage)}.counts .used{color:var(--amber)}.counts .fault{color:var(--clay)}.ports{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}.port{width:27px;height:27px;display:grid;place-items:center;font-size:11px;color:white;border-radius:50%;background:#74786e}.port.free{background:var(--sage)}.port.used{background:var(--amber)}.port.fault{background:var(--clay)}.device-note,.device-error{font-size:11px;color:var(--clay);line-height:1.6;overflow-wrap:anywhere;margin-top:6px}.device-error{color:var(--muted)}.empty{grid-column:1/-1;padding:35px 20px;text-align:center;font-size:13px;line-height:1.8;color:var(--muted);border:1px dashed var(--line);border-radius:16px}.check{font-size:11px;line-height:1.7;color:var(--muted);margin:0;padding:9px 11px;background:var(--sage-soft);border-radius:10px}.check b{color:var(--ink)}.check a{white-space:nowrap}
+mark{background:#f2e3b3;color:inherit;border-radius:3px}.summary-section{margin-top:30px;padding-top:20px;border-top:1px solid var(--line)}.summary-heading{display:flex;align-items:baseline;justify-content:space-between;gap:10px;margin-bottom:12px}.summary-heading h2{font-size:14px;margin:0}.summary-heading span{font-size:11px;color:var(--muted)}.metrics{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:8px}.metric{padding:14px 8px;background:var(--card);border:1px solid var(--line);border-radius:12px;text-align:center}.number{font-size:24px;font-weight:650;font-variant-numeric:tabular-nums}.label{color:var(--muted);font-size:11px;margin-top:5px}.metric.free .number{color:var(--sage)}.metric.used .number{color:var(--amber)}.metric.fault .number{color:var(--clay)}.coverage{font-size:12px;color:var(--muted);line-height:1.8;margin:12px 0 0}footer{color:var(--muted);font-size:11px;line-height:1.8;margin-top:24px}noscript{display:block;padding:16px;color:var(--clay)}
+@media(max-width:640px){main{padding:0 14px calc(28px + env(safe-area-inset-bottom))}.top{padding-top:calc(12px + env(safe-area-inset-top));padding-bottom:12px}.brand{font-size:16px}.campus{font-size:10px;margin-left:5px}.location{padding:15px 0 12px;align-items:flex-start}.locate{padding:10px 12px}.toolbar{gap:8px}.toolbar input{padding:10px 12px}.toolbar select{padding:10px 8px;max-width:118px}.grid{grid-template-columns:1fr;gap:10px}.station summary{padding:14px}.recommend-label{padding:7px 14px}.devices{padding:0 14px 14px}.metrics{gap:5px}.metric{padding:12px 3px}.number{font-size:22px}.label{font-size:10px}.summary-section{margin-top:24px}}
+@media(prefers-reduced-motion:no-preference){button,summary{transition:background-color .15s}button:active,summary:active{filter:brightness(.97)}}
+</style>
+</head>
+<body>
+<main>
+<header class="top">
+  <div><div class="brand">玉泉充电桩<span class="campus">NEPTUNE</span></div><div class="status" id="status" role="status"><i class="dot" aria-hidden="true"></i><span>正在获取空位…</span></div></div>
+  <button id="refresh" type="button">刷新</button>
+</header>
+<section class="location" aria-label="定位与排序">
+  <div class="location-copy"><p class="location-title" id="location-title">哪里有空位</p><p class="location-note" id="location-note" role="status">点「定位」，有空位的站点会按距离从近到远排。位置只在本机使用，不上传。</p></div>
+  <button class="locate" id="locate" type="button">定位找空位</button>
+</section>
+<div class="notice" id="notice" role="status" hidden></div>
+<div class="toolbar">
+  <input id="search" type="search" placeholder="搜索站点名、别名或设备号" aria-label="搜索站点" autocomplete="off">
+  <select id="filter" aria-label="筛选站点"><option value="all">全部</option><option value="available">有空位</option><option value="busy">使用中</option><option value="fault">有故障</option></select>
+</div>
+<div class="section-bar"><div><h1 id="list-title">空位优先</h1><div class="hint" id="hint">正在加载站点…</div></div></div>
+<section class="grid" id="grid" aria-label="充电站点" aria-busy="true"><div class="empty">正在获取站点状态…</div></section>
+<section class="summary-section" aria-labelledby="summary-title"><div class="summary-heading"><h2 id="summary-title">全校区统计</h2><span>全部站点</span></div><div class="metrics" id="metrics"></div><p class="coverage" id="coverage">等待数据</p></section>
+<footer>每 15 秒自动更新 · 时间为北京时间 · 距离为直线估算，仅供参考<br>数据来自尼普顿公开设备接口，仅供个人查看，出发前请以现场为准 · v1.0</footer>
+<noscript>请启用 JavaScript 以查看实时空位。</noscript>
+</main>
+<script>
+const $ = selector => document.querySelector(selector);
+const labels = {free:'空闲', used:'使用中', fault:'故障', other:'其他'};
+const beijingFormatter = new Intl.DateTimeFormat('zh-CN', {timeZone:'Asia/Shanghai', hour:'2-digit', minute:'2-digit', second:'2-digit', hourCycle:'h23'});
+const FAR_DEVICE_METERS = 300;
+let snapshot = null;
+let userLocation = null;
+let userFix = null;
+let loading = false;
+let refreshTimer = null;
+const expandedStations = new Set();
+
+function escape(value) {
+  return String(value).replace(/[&<>"']/g, character => ({'&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;'}[character]));
+}
+function stationKey(station) {
+  return JSON.stringify([station.name, station.lon, station.lat]);
+}
+function beijingTime(value) {
+  if (!value) return '等待首次更新';
+  const normalized = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(value) ? value.replace(' ', 'T') + '+08:00' : value;
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) return '更新时间未知';
+  const calendar = new Intl.DateTimeFormat('zh-CN', {timeZone:'Asia/Shanghai', month:'2-digit', day:'2-digit'});
+  return `${calendar.format(date)} ${beijingFormatter.format(date)} 北京时间`;
+}
+function setStatus(kind, text) {
+  $('#status').className = 'status ' + kind;
+  $('#status span').textContent = text;
+}
+function metersBetween(lat1, lon1, lat2, lon2) {
+  if (![lat1, lon1, lat2, lon2].every(Number.isFinite)) return Infinity;
+  const radians = degrees => degrees * Math.PI / 180;
+  const halfLat = Math.sin(radians(lat2 - lat1) / 2) ** 2;
+  const halfLon = Math.cos(radians(lat1)) * Math.cos(radians(lat2)) * Math.sin(radians(lon2 - lon1) / 2) ** 2;
+  return 6371000 * 2 * Math.asin(Math.sqrt(Math.min(1, halfLat + halfLon)));
+}
+function distanceTo(station, location) {
+  if (!location) return Infinity;
+  return metersBetween(location.lat, location.lon, station.lat, station.lon);
+}
+function distanceLabel(distance) {
+  if (!Number.isFinite(distance)) return '距离未知';
+  return distance < 1000 ? `约 ${Math.max(10, Math.round(distance / 10) * 10)} 米` : `约 ${(distance / 1000).toFixed(1)} 公里`;
+}
+/* 站点与设备坐标来自尼普顿接口，是 BD-09（百度坐标系），不是 GCJ-02。
+   高德用 GCJ-02，浏览器定位给的是 WGS-84，用之前都必须显式换算，
+   否则会偏出 900 米左右（见 docs/coordinates.md）。 */
+const PI = Math.PI;
+function outOfChina(lon, lat) {
+  return lon < 72.004 || lon > 137.8347 || lat < 0.8293 || lat > 55.8271;
+}
+function wgs84ToGcj02(lon, lat) {
+  if (outOfChina(lon, lat)) return [lon, lat];
+  const x = lon - 105;
+  const y = lat - 35;
+  let deltaLat = -100 + 2 * x + 3 * y + 0.2 * y * y + 0.1 * x * y + 0.2 * Math.sqrt(Math.abs(x));
+  deltaLat += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+  deltaLat += (20 * Math.sin(y * PI) + 40 * Math.sin(y / 3 * PI)) * 2 / 3;
+  deltaLat += (160 * Math.sin(y / 12 * PI) + 320 * Math.sin(y * PI / 30)) * 2 / 3;
+  let deltaLon = 300 + x + 2 * y + 0.1 * x * x + 0.1 * x * y + 0.1 * Math.sqrt(Math.abs(x));
+  deltaLon += (20 * Math.sin(6 * x * PI) + 20 * Math.sin(2 * x * PI)) * 2 / 3;
+  deltaLon += (20 * Math.sin(x * PI) + 40 * Math.sin(x / 3 * PI)) * 2 / 3;
+  deltaLon += (150 * Math.sin(x / 12 * PI) + 300 * Math.sin(x / 30 * PI)) * 2 / 3;
+  const radLat = lat / 180 * PI;
+  const magic = 1 - 0.00669342162296594323 * Math.sin(radLat) ** 2;
+  const sqrtMagic = Math.sqrt(magic);
+  return [
+    lon + (deltaLon * 180) / (6378245 / sqrtMagic * Math.cos(radLat) * PI),
+    lat + (deltaLat * 180) / (6378245 * (1 - 0.00669342162296594323) / (magic * sqrtMagic) * PI),
+  ];
+}
+function gcj02ToBd09(lon, lat) {
+  const z = Math.sqrt(lon * lon + lat * lat) + 0.00002 * Math.sin(lat * PI * 3000 / 180);
+  const theta = Math.atan2(lat, lon) + 0.000003 * Math.cos(lon * PI * 3000 / 180);
+  return [z * Math.cos(theta) + 0.0065, z * Math.sin(theta) + 0.006];
+}
+function bd09ToGcj02(lon, lat) {
+  const x = lon - 0.0065;
+  const y = lat - 0.006;
+  const z = Math.sqrt(x * x + y * y) - 0.00002 * Math.sin(y * PI * 3000 / 180);
+  const theta = Math.atan2(y, x) - 0.000003 * Math.cos(x * PI * 3000 / 180);
+  return [z * Math.cos(theta), z * Math.sin(theta)];
+}
+function wgs84ToBd09(lon, lat) {
+  const [gcjLon, gcjLat] = wgs84ToGcj02(lon, lat);
+  return gcj02ToBd09(gcjLon, gcjLat);
+}
+/* 用于把 GCJ-02 反推回 WGS-84（上报时附上，便于和 OSM 等外部数据对照）。 */
+function gcj02ToWgs84(lon, lat) {
+  let wLon = lon;
+  let wLat = lat;
+  for (let i = 0; i < 5; i += 1) {
+    const [gLon, gLat] = wgs84ToGcj02(wLon, wLat);
+    wLon += lon - gLon;
+    wLat += lat - gLat;
+  }
+  return [wLon, wLat];
+}
+/* 位置上报：只有用户主动点这个链接，才会把本次定位写进公开的 GitHub issue。
+   页面自己不发送、不存储位置。 */
+const REPORT_REPO = 'https://github.com/BallCard/neptune-charger-monitor';
+function reportUrl(station, distance) {
+  const [gcjLon, gcjLat] = bd09ToGcj02(station.lon, station.lat);
+  const [wgsLon, wgsLat] = gcj02ToWgs84(gcjLon, gcjLat);
+  const mine = userLocation && userFix
+    ? [`- BD-09：${userLocation.lon.toFixed(6)}, ${userLocation.lat.toFixed(6)}`,
+       `- WGS-84（浏览器原始）：${userFix.lon.toFixed(6)}, ${userFix.lat.toFixed(6)}`]
+    : ['- （本次未定位）'];
+  const body = [
+    '## 位置上报', '',
+    `- 站点：${station.name}`,
+    `- 我当前位置距登记位置：${distanceLabel(distance)}（直线估算）`,
+    `- 我的定位精度：${userFix && Number.isFinite(userFix.accuracy) ? `± ${Math.round(userFix.accuracy)} 米` : '未知'}`,
+    `- 时间：${beijingTime(new Date().toISOString())}`, '',
+    '### 站点登记位置',
+    `- BD-09（面板存储）：${station.lon.toFixed(6)}, ${station.lat.toFixed(6)}`,
+    `- GCJ-02（高德）：${gcjLon.toFixed(6)}, ${gcjLat.toFixed(6)}`,
+    `- WGS-84（OSM 等）：${wgsLon.toFixed(6)}, ${wgsLat.toFixed(6)}`, '',
+    '### 我的位置', ...mine, '',
+    '### 请补充',
+    '- 桩位实际在哪里（例如：教十北门西侧车棚内）',
+    '- 可附现场照片或地图截图',
+  ].join('\n');
+  return `${REPORT_REPO}/issues/new?title=${encodeURIComponent(`[位置上报] ${station.name}`)}&body=${encodeURIComponent(body)}`;
+}
+/* 本地自检：只在本机算，判断用户是不是正站在某个站点旁边。 */
+function nearbyNote() {
+  if (!snapshot || !userLocation) return '';
+  let best = null;
+  snapshot.stations.forEach(station => {
+    const away = distanceTo(station, userLocation);
+    if (Number.isFinite(away) && (!best || away < best.away)) best = {station, away};
+  });
+  if (!best || best.away > 200) return '';
+  return `你似乎就在「${best.station.name}」附近（约 ${Math.round(best.away)} 米）：若桩位不在这个位置，展开该站点点「登记位置有误？上报」。`;
+}
+function navLinks(station) {
+  const name = station.name;
+  /* 站点是 BD-09：高德要先转成 GCJ-02，百度直接用。 */
+  const [gcjLon, gcjLat] = bd09ToGcj02(station.lon, station.lat);
+  const amap = `https://uri.amap.com/navigation?to=${gcjLon.toFixed(6)},${gcjLat.toFixed(6)},${encodeURIComponent(name)}&mode=walk&coordinate=gaode&callnative=1&src=zju-charger-monitor`;
+  const baidu = `https://api.map.baidu.com/direction?destination=${encodeURIComponent(`latlng:${station.lat.toFixed(6)},${station.lon.toFixed(6)}|name:${name}`)}&mode=walking&output=html&coord_type=bd09ll&src=webapp.zju.charger.monitor`;
+  return `<div class="nav"><a href="${escape(amap)}" target="_blank" rel="noopener" aria-label="用高德地图步行导航到 ${escape(name)}">高德导航</a><a href="${escape(baidu)}" target="_blank" rel="noopener" aria-label="用百度地图步行导航到 ${escape(name)}">百度导航</a></div>`;
+}
+function rankedStations(stations, location) {
+  return stations.map(station => ({...station, distance:distanceTo(station, location)})).sort((left, right) => {
+    const availability = Number(right.reachable && right.free > 0) - Number(left.reachable && left.free > 0);
+    if (availability) return availability;
+    const reachability = Number(right.reachable) - Number(left.reachable);
+    if (reachability) return reachability;
+    if (location && left.distance !== right.distance) return left.distance - right.distance;
+    return right.free - left.free || left.name.localeCompare(right.name, 'zh-CN');
+  });
+}
+function showNotice(text) {
+  $('#notice').textContent = text;
+  $('#notice').hidden = !text;
+}
+async function load() {
+  if (loading || document.hidden) return;
+  clearTimeout(refreshTimer);
+  loading = true;
+  $('#refresh').disabled = true;
+  $('#refresh').textContent = '更新中';
+  $('#grid').setAttribute('aria-busy', 'true');
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 35000);
+  try {
+    const response = await fetch('/api/status', {cache:'no-store', signal:controller.signal});
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    const payload = await response.json();
+    if (!Array.isArray(payload.stations)) throw new Error('数据格式异常');
+    snapshot = payload;
+    render();
+    setStatus(payload.last_error ? 'error' : payload.updated_at ? 'online' : '', beijingTime(payload.updated_at));
+    showNotice(payload.last_error ? '部分设备暂时取不到数据，空位统计可能偏少。' : '');
+  } catch (error) {
+    setStatus('error', snapshot ? `更新失败 · 数据截至 ${beijingTime(snapshot.updated_at)}` : '连接失败');
+    showNotice(snapshot ? '这次没刷新成功，显示的是上一次数据，空位可能已经变了。' : (error.name === 'AbortError' ? '请求超时，请点「刷新」重试。' : '暂时连不上，请检查网络后重试。'));
+    if (!snapshot) $('#grid').innerHTML = '<div class="empty">暂时获取不到站点状态<br>请点右上角「刷新」重试</div>';
+  } finally {
+    clearTimeout(timeout);
+    loading = false;
+    $('#refresh').disabled = false;
+    $('#refresh').textContent = '刷新';
+    $('#grid').setAttribute('aria-busy', 'false');
+    if (!document.hidden) refreshTimer = setTimeout(load, 15000);
+  }
+}
+function render() {
+  const stations = snapshot.stations;
+  const totals = {free:0, used:0, fault:0, other:0};
+  stations.forEach(station => Object.keys(totals).forEach(key => totals[key] += station[key] || 0));
+  const total = Object.values(totals).reduce((sum, count) => sum + count, 0);
+  $('#metrics').innerHTML = [['', '全部', total], ['free','空闲',totals.free], ['used','使用中',totals.used], ['fault','故障',totals.fault], ['other','其他',totals.other]].map(([kind, label, count]) => `<div class="metric ${kind}"><div class="number">${count}</div><div class="label">${label}</div></div>`).join('');
+  const devices = stations.flatMap(station => station.devices_detail || []);
+  $('#coverage').textContent = `${stations.length} 个站点 · ${devices.length} 台设备 · ${devices.filter(device => device.reachable).length} 台可连接 · 共 ${total} 个插座`;
+  draw();
+}
+function matchesFilters(station, mode, query) {
+  const modeOk = mode === 'all'
+    || (mode === 'available' && station.reachable && station.free > 0)
+    || (mode === 'busy' && station.used > 0)
+    || (mode === 'fault' && station.fault > 0);
+  if (!modeOk) return false;
+  if (!query) return true;
+  const needle = query.toLowerCase();
+  return station.name.toLowerCase().includes(needle)
+    || (station.aliases || []).some(alias => alias.toLowerCase().includes(needle))
+    || (station.devices_detail || []).some(device => String(device.id).includes(needle));
+}
+function highlight(text, query) {
+  const safe = escape(text);
+  if (!query) return safe;
+  const pattern = escape(query).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  try {
+    return safe.replace(new RegExp(pattern, 'gi'), match => `<mark>${match}</mark>`);
+  } catch {
+    return safe;
+  }
+}
+function draw() {
+  if (!snapshot) return;
+  const mode = $('#filter').value;
+  const query = $('#search').value.trim();
+  const ranked = rankedStations(snapshot.stations, userLocation);
+  const shown = ranked.filter(station => matchesFilters(station, mode, query));
+  const freeStations = ranked.filter(station => station.reachable && station.free > 0).length;
+  const recommended = userLocation && ranked.find(station => station.reachable && station.free > 0);
+  $('#list-title').textContent = userLocation ? '离你最近的空位' : '空位优先';
+  $('#hint').textContent = `${shown.length}/${ranked.length} 个站点 · ${freeStations} 个有空位`;
+  $('#grid').innerHTML = shown.length
+    ? shown.map(station => stationCard(station, recommended && stationKey(station) === stationKey(recommended), query)).join('')
+    : `<div class="empty">${query ? `没有站点匹配「${escape(query)}」` : '没有符合条件的站点'}<br>换个关键词或选「全部」</div>`;
+  $('#grid').querySelectorAll('details').forEach(details => details.addEventListener('toggle', () => {
+    if (!details.isConnected) return;
+    if (details.open) expandedStations.add(details.dataset.key);
+    else expandedStations.delete(details.dataset.key);
+  }));
+}
+function stationCard(station, recommended, query) {
+  const devices = station.devices_detail || [];
+  const unavailable = !station.reachable || station.free === 0;
+  const failed = devices.filter(device => !device.reachable).length;
+  const distance = userLocation ? `<span class="distance">${distanceLabel(station.distance)}</span> · ` : '';
+  const status = !station.reachable ? '暂不可用' : station.free ? '个空位' : '暂无空位';
+  const key = stationKey(station);
+  const check = userLocation && Number.isFinite(station.distance)
+    ? `<p class="check">核对登记位置：你当前位置距本站 <b>${distanceLabel(station.distance)}</b>（直线估算）· <a href="${escape(reportUrl(station, station.distance))}" target="_blank" rel="noopener">登记位置有误？上报</a></p>`
+    : '';
+  return `<details class="station${recommended ? ' recommended' : ''}" data-key="${escape(key)}"${expandedStations.has(key) ? ' open' : ''}>
+    <summary>${recommended ? '<div class="recommend-label">离你最近的有空位站点</div>' : ''}<div class="station-head"><div><div class="station-name">${highlight(station.name, query)}</div><div class="station-meta">${distance}${station.devices} 台设备 · ${station.total} 孔</div>${(station.aliases || []).length ? `<div class="station-alias">别名：${highlight((station.aliases || []).join(' / '), query)}</div>` : ''}</div><div class="availability${unavailable ? ' unavailable' : ''}"><strong>${station.reachable ? station.free : '—'}</strong>${status}</div></div><div class="station-bottom"><span class="${failed || station.fault ? 'alert' : ''}">${failed ? `${failed} 台暂不可连接` : `使用中 ${station.used} · 故障 ${station.fault}`}</span><span class="expand">插座与导航</span></div></summary>
+    <div class="devices">${navLinks(station)}${check}${devices.map(device => deviceCard(station, device)).join('')}</div></details>`;
+}
+function deviceCard(station, device) {
+  if (!device.reachable) return `<div class="device"><div class="device-head"><b>设备 ${escape(device.id)}</b><span class="device-state error">获取失败</span></div><div class="device-error">${escape(device.error || '请求失败')}</div></div>`;
+  const away = metersBetween(station.lat, station.lon, device.lat, device.lon);
+  const note = Number.isFinite(away) && away > FAR_DEVICE_METERS
+    ? `<div class="device-note">登记位置距本站约 ${away < 1000 ? `${Math.round(away / 10) * 10} 米` : `${(away / 1000).toFixed(1)} 公里`}，可能已不在原址，插座数仅供参考。</div>`
+    : '';
+  return `<div class="device"><div class="device-head"><b>设备 ${escape(device.id)}</b><span class="device-state">在线 · ${device.total} 孔</span></div><div class="counts"><span class="free">空闲 ${device.free}</span><span class="used">使用中 ${device.used}</span><span class="fault">故障 ${device.fault}</span></div><div class="ports">${device.ports.map((status, index) => `<span class="port ${escape(status)}" title="${index + 1} 号 · ${escape(labels[status] || '其他')}" aria-label="${index + 1} 号插座：${escape(labels[status] || '其他')}">${index + 1}</span>`).join('')}</div>${note}</div>`;
+}
+function locate() {
+  if (!navigator.geolocation || !window.isSecureContext) {
+    $('#location-note').textContent = '当前浏览器不支持定位，可以先用搜索找站点。';
+    return;
+  }
+  $('#locate').disabled = true;
+  $('#locate').textContent = '定位中…';
+  $('#location-note').textContent = '请在浏览器里允许获取位置。';
+  navigator.geolocation.getCurrentPosition(position => {
+    /* 浏览器定位是 WGS-84，站点是 BD-09；换算到同一坐标系再比距离。 */
+    const [bdLon, bdLat] = wgs84ToBd09(position.coords.longitude, position.coords.latitude);
+    userLocation = {lat:bdLat, lon:bdLon};
+    userFix = {lat:position.coords.latitude, lon:position.coords.longitude, accuracy:position.coords.accuracy};
+    $('#location-title').textContent = '按距离排序';
+    const nearby = nearbyNote();
+    $('#location-note').textContent = `有空位优先，同类按距离排${position.coords.accuracy > 200 ? '（当前定位较粗略）' : ''}。位置默认不上传；只有你主动点「上报」时，才会把这次定位发到公开的 GitHub issue。${nearby ? ` ${nearby}` : ''}`;
+    $('#locate').disabled = false;
+    $('#locate').textContent = '重新定位';
+    draw();
+  }, error => {
+    const messages = {1:'没拿到位置权限，可在浏览器网站设置里开启。', 2:'暂时定位不到，请检查系统定位开关。', 3:'定位超时，请稍后重试。'};
+    $('#location-note').textContent = (messages[error.code] || '定位失败，请稍后重试。') + (userLocation ? ' 仍按上次位置排序。' : ' 仍按空位优先显示。');
+    $('#locate').disabled = false;
+    $('#locate').textContent = '重试定位';
+  }, {enableHighAccuracy:true, timeout:12000, maximumAge:60000});
+}
+async function restoreLocationPermission() {
+  if (!navigator.permissions || !navigator.geolocation) return;
+  try {
+    const permission = await navigator.permissions.query({name:'geolocation'});
+    if (permission.state === 'granted') locate();
+  } catch {}
+}
+$('#refresh').addEventListener('click', load);
+$('#filter').addEventListener('change', draw);
+$('#search').addEventListener('input', draw);
+$('#search').addEventListener('search', draw);
+$('#locate').addEventListener('click', locate);
+document.addEventListener('visibilitychange', () => {
+  clearTimeout(refreshTimer);
+  if (!document.hidden) load();
+});
+load();
+restoreLocationPermission();
+</script>
+</body>
+</html>

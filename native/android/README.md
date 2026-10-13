@@ -1,6 +1,6 @@
 # Android 本机执行器
 
-测试版0.3.1-test，包名 `cn.neptune.local`，Android8/API26起、目标API35。前端和ZXing-WASM内置于APK，Vercel只分发程序。打包器统一ZIP条目斜杠路径，并核对页面与识别器的字节校验值。已完成编译、签名和离线核心验证；安装、WebView、权限、锁屏、真实开电与系统通知仍需实机验收。
+测试版0.4.0-test，包名 `cn.neptune.local`，Android8/API26起、目标API35。前端和ZXing-WASM内置于APK，Vercel分发程序并为普通网页提供公开空位函数。打包器统一ZIP条目斜杠路径，并核对页面与识别器的字节校验值。已完成编译、签名和离线核心验证；安装、WebView、权限、锁屏、真实开电与系统通知仍需实机验收。
 
 项目根先 `npm ci`、`npm run build`，依次运行 `scripts/prepare-android-toolchain.ps1`、`scripts/test-android-core.ps1`、`scripts/build-android.ps1`，最后再 `npm run build` 供网页分发最新APK。完整命令见[项目入口](../../README.md)。
 
@@ -25,3 +25,6 @@ APK位于 `public/downloads/neptune-local-assistant.apk`，Git忽略二进制；
 先只读核对账号、二维码、方案、金额和时间；取消未来预约并确认未产生订单。车辆接好、本人确认后，设置3–5分钟后的单次预约，退出并锁屏，查系统通知、微信目标订单及功率，核对助手内结果与通知状态。最后验隔夜06:00、断网和重启；厂商限制需各手机验证。
 
 真实预约只由使用者确认发起。提交不明先查微信，不能为测试重发同次启动。通知报告启动检查，不承诺充满。iPhone见[独立验证](../../docs/iphone-shortcuts-validation.md)，不能安装本APK。
+# 历史执行器
+
+2026-10-13 用户已改为只用网页，以下 Android 说明仅保留历史，不再作为当前安装、构建或发布流程。当前入口与云端接入状态见主项目 README。

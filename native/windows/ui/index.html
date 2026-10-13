@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="neptune-session" content="__SESSION__">
+  <meta name="color-scheme" content="light">
+  <title>尼普顿 · 充电助手</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='8' fill='%2314845b'/%3E%3Cpath d='m18 5-10 14h8l-1 8 10-15h-8z' fill='none' stroke='white' stroke-width='2' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="/style.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+<main class="shell">
+  <header class="header">
+    <div class="brand"><span class="brand-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="m13 2-8 12h6l-1 8 9-13h-6z"/></svg></span><div><h1>充电助手</h1><p>尼普顿 · 单次早晨预约</p></div></div>
+    <div class="header-tools"><span id="updated" class="muted">正在读取状态</span><button id="refresh" class="small-button" type="button">刷新</button></div>
+  </header>
+  <div id="notice" class="notice" role="status" aria-live="polite" hidden></div>
+  <div class="layout">
+    <section class="card current-card" aria-labelledby="current-title">
+      <div class="section-top"><span class="eyebrow">本次充电</span><span id="connection" class="badge">连接中</span></div>
+      <div class="status-heading"><span id="status-dot" class="status-dot"></span><h2 id="current-title">正在读取状态…</h2></div>
+      <p id="current-description" class="description">正在连接平台，核对当前订单。</p>
+      <div class="target"><span class="target-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><path d="M8 3v5m8-5v5M6 8h12v3a6 6 0 0 1-12 0V8Zm6 9v4"/></svg></span><div><strong id="station">已配置的充电设备</strong><p id="target-text">设备与插座信息加载中</p></div><span id="port" class="port-chip">--</span></div>
+      <div class="metrics">
+        <div><span>当前功率</span><strong id="power">—<small> W</small></strong><p id="power-note">等待平台数据</p></div>
+        <div><span id="balance-label">账户余额</span><strong id="balance">—<small> 元</small></strong><p>使用已绑定账号余额</p></div>
+        <div><span>充电套餐</span><strong class="package">充满自停</strong><p>单次最长 480 分钟</p></div>
+      </div>
+      <div class="progress-area">
+        <div class="progress-title"><h3>预约执行进度</h3><span id="progress-date" class="muted">暂无预约</span></div>
+        <ol id="timeline" class="timeline">
+          <li><span class="step-dot">1</span><strong>预约就绪</strong><span>尚未预约</span></li>
+          <li><span class="step-dot">2</span><strong>恢复供电</strong><span>早上 6:00 后</span></li>
+          <li><span class="step-dot">3</span><strong>核对并开电</strong><span>账户与插座核对</span></li>
+          <li><span class="step-dot">4</span><strong>启动确认</strong><span>平台与订单确认</span></li>
+        </ol>
+        <p id="progress-message" class="progress-message">预约后，执行状态会自动更新。</p>
+      </div>
+    </section>
+    <aside class="side">
+      <section class="card booking-card" aria-labelledby="booking-title">
+        <div class="section-top"><h2 id="booking-title">下一次预约</h2><span id="booking-badge" class="badge neutral">未预约</span></div>
+        <div id="booking-day" class="booking-day">正在读取日期</div><div class="booking-time">06<span>:00</span></div>
+        <p id="countdown" class="countdown">每天营业开始后自动执行</p>
+        <div class="booking-rule"><span>付款方式</span><strong>账户余额</strong></div>
+        <div class="booking-rule"><span>预扣金额</span><strong id="prepay">最多 2 元</strong></div>
+        <button id="reserve" class="primary-button" type="button" disabled>正在核对状态…</button>
+        <p id="booking-hint" class="booking-hint">点击预约即确认车辆与充电器已接好，并会留在目标插座直到预约时间。</p>
+        <button id="cancel" class="cancel-button" type="button" hidden>取消预约</button>
+      </section>
+      <section class="card reminder-card"><div class="reminder-title"><span aria-hidden="true">✉</span><h3>失败提醒</h3><span id="mail-dot" class="mini-dot"></span></div><p id="mail-recipient">读取配置中</p><p class="muted">启动未确认时发邮件，6:15 再检查一次。</p></section>
+      <p class="environment-note">关闭界面后，预约仍会按时执行。<br>电脑需保持登录、联网。</p>
+    </aside>
+  </div>
+  <section class="card records-card"><details><summary><span>最近运行记录</span><span class="muted">展开查看</span></summary><ol id="logs" class="logs"><li>正在读取记录…</li></ol></details></section>
+  <footer><span><i class="mini-dot"></i> 本机界面</span><span>流程状态每 2 秒刷新 · 平台数据约每 30 秒更新</span></footer>
+</main>
+</body>
+</html>

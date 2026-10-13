@@ -1,0 +1,6 @@
+project_id = "neptune-charge-web"
+
+[functions.web-api]
+enabled = true
+verify_jwt = false
+entrypoint = "./functions/web-api/index.ts"

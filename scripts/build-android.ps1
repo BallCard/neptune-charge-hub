@@ -32,7 +32,7 @@ $taskD8Jar = Join-Path $taskPaths.buildTools 'lib/d8.jar'
 & $taskPaths.java -cp $taskD8Jar com.android.tools.r8.D8 --lib $taskPaths.androidJar --min-api 26 --output $taskDex $taskJar
 if ($LASTEXITCODE -ne 0) { throw 'Android bytecode compilation failed.' }
 $taskUnsigned = Join-Path $taskBuild 'unsigned.apk'
-& (Join-Path $taskPaths.buildTools 'aapt2.exe') link -I $taskPaths.androidJar --manifest (Join-Path $taskRoot 'native/android/AndroidManifest.xml') -A (Join-Path $taskBuild 'assets') --min-sdk-version 26 --target-sdk-version 35 --version-code 4 --version-name '0.3.1-test' -o $taskUnsigned
+& (Join-Path $taskPaths.buildTools 'aapt2.exe') link -I $taskPaths.androidJar --manifest (Join-Path $taskRoot 'native/android/AndroidManifest.xml') -A (Join-Path $taskBuild 'assets') --min-sdk-version 26 --target-sdk-version 35 --version-code 5 --version-name '0.4.0-test' -o $taskUnsigned
 if ($LASTEXITCODE -ne 0) { throw 'Android resources packaging failed.' }
 # Windows aapt2 can emit backslashes inside asset entry names. Android uses slash paths.
 # Rebuild with JDK jar's slash paths and STORED entries. The Android resource table
@@ -88,5 +88,5 @@ try {
     }
 } finally { $taskAssetZip.Dispose() }
 $taskHash = (Get-FileHash -LiteralPath $taskApk -Algorithm SHA256).Hash.ToLowerInvariant()
-@{apk='neptune-local-assistant.apk';version='0.3.1-test';sha256=$taskHash;bytes=(Get-Item -LiteralPath $taskApk).Length;realDeviceValidated=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskDownloads 'version.json') -Encoding utf8
+@{apk='neptune-local-assistant.apk';version='0.4.0-test';sha256=$taskHash;bytes=(Get-Item -LiteralPath $taskApk).Length;realDeviceValidated=$false} | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $taskDownloads 'version.json') -Encoding utf8
 Write-Output ('APK built and signature verified: ' + $taskApk)

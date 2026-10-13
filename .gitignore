@@ -12,3 +12,9 @@ out/
 public/downloads/*.apk
 public/downloads/*.apk.idsig
 public/vendor/*.wasm
+__pycache__/
+*.pyc
+logs/
+public/nearby/stations.json
+modules/nearby/stations.json
+supabase/.temp/

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   checkReservation, inspectAccount, inspectTarget, parsePaymentUrl, prepareCharge, readLive, submitCharge, verifyCharge,
-  PRICE_FIELDS, type AccountConfig, type PreparedCharge, type Prices,
+  PRICE_FIELDS, inspectWebTarget, checkWebReservation, prepareWebCharge, type AccountConfig, type PreparedCharge, type Prices,
 } from "../src/lib/neptune";
 
 const prices: Prices = { efee: 110, eCharge: 55, serviceCharge: 55, efee_l: 80, eCharge_l: 80, serviceCharge_l: 0 };
@@ -324,5 +324,29 @@ test("stale, altered and not-yet-submitted requests cannot send charge traffic",
   prepared.payload.money = 7;
   prepared.payload.extraField = 1;
   await assert.rejects(submitCharge(prepared), /参数/);
+  assert.equal(api.submissions.length, 0);
+}));
+
+test('web catalog preserves actual full-stop duration and verified timed choices with a single new request', async () => withPlatform(async api => {
+  api.device.ycTime = 240; api.device.yuan11 = 1;
+  const live = await inspectWebTarget(config, target);
+  assert.deepEqual(live.quote.schemes.map(s => s.id), ['full-stop','minutes-60','minutes-120','minutes-240']);
+  const frozen = await checkWebReservation(config, live.target, 'minutes-120', live.quote.fingerprint, 200);
+  assert.equal(frozen.selected.maxMinutes, 120);
+  const prepared = await prepareWebCharge(config, live.target, 'minutes-120', live.quote.fingerprint, 200);
+  await submitCharge(prepared); await verifyCharge(prepared, prepared.msgflag);
+  assert.equal(api.submissions.length, 1); assert.equal(api.submissions[0].data.yuan7, '120');
+  assert.equal(api.confirmations[0].data.yuan7, '120');
+  await assert.rejects(submitCharge(structuredClone(prepared)), /已经提交/);
+}));
+test('web preflight permits closed hours but detects pricing, protection and scheme changes before submission', async () => withPlatform(async api => {
+  api.device.yuan11 = 1; api.device.isWorkTime = 0;
+  const live = await inspectWebTarget(config, target);
+  await checkWebReservation(config, live.target, 'full-stop', live.quote.fingerprint, 200);
+  await assert.rejects(prepareWebCharge(config, live.target, 'full-stop', live.quote.fingerprint, 200), /尚未恢复/);
+  api.device.isWorkTime = 1; api.device.safeCharge = 10;
+  await assert.rejects(prepareWebCharge(config, live.target, 'full-stop', live.quote.fingerprint, 200), /收费标准已改变/);
+  api.device.safeCharge = 9; api.device.yuan11 = 0;
+  await assert.rejects(prepareWebCharge(config, live.target, 'minutes-120', live.quote.fingerprint, 200), /收费标准已改变/);
   assert.equal(api.submissions.length, 0);
 }));

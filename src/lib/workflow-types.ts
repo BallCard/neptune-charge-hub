@@ -8,10 +8,10 @@ export type WorkflowBooking = { id: string; device: string; port: string; schedu
   schemeTitle: string; maxMinutes: number; phase: BookingPhase; result: string;
   mailStatus: "queued" | "sent" | "failed" | "uncertain" | "not-required";
   notificationStatus?: "queued" | "shown" | "failed" | "not-required" };
-export type WorkflowState = { executor: { kind: "none" | "android" | "windows" | "ios"; connected: boolean;
+export type WorkflowState = { executor: { kind: "none" | "android" | "windows" | "ios" | "cloud"; connected: boolean;
   exactAlarm: boolean; notifications: boolean; detail: string }; profile: { accountBound: boolean;
   mailConfigured: boolean; recipient: string }; target: QrTarget | null; quote: TargetQuote | null;
-  bookings: WorkflowBooking[]; error?: string };
+  bookings: WorkflowBooking[]; legacyGuard?: { until: string; message: string }; error?: string };
 export const workflowPhaseNames: Record<BookingPhase, string> = {
   scheduled: "预约已生效", waiting: "等待恢复营业", checking: "核对账号与插座", submitting: "正在发起充电",
   pending: "等待平台确认", confirmed: "已确认启动", "already-charging": "已有本人订单", cancelled: "已取消",
@@ -30,6 +30,6 @@ export function formatBookingTime(iso: string) {
 }
 export const emptyWorkflow = (): WorkflowState => ({
   executor: { kind: "none", connected: false, exactAlarm: false, notifications: false,
-    detail: "请在本机助手中打开。浏览器用于识别二维码和查看流程；自动开电需要本地执行端。" },
+    detail: "请先登录晨充，再导入本人付款授权。预约生效后由云端执行。" },
   profile: { accountBound: false, mailConfigured: false, recipient: "" }, target: null, quote: null, bookings: [],
 });
