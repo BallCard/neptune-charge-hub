@@ -43,7 +43,7 @@ if(cloud.url&&!/^https:\/\/[a-z]{20}\.supabase\.co$/.test(cloud.url))throw Error
 const csp = `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${cloud.url||''}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'`;
 await writeFile(join(output, "config.json"), JSON.stringify({ version: 3, routes: [
   { src: "/(.*)", headers: { "Content-Security-Policy": csp, "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer" }, continue: true },
-  ...(cloud.url?[{src:'/api/web/(health|status|refresh|configureAccount|setTarget|clearTarget|inspectTarget|reserve|cancel|reviewUncertain|deviceProbe|tick)$',dest:'/api/web?action=$1'}]:[]),
+  ...(cloud.url?[{src:'/api/web/(health|status|refresh|configureAccount|setTarget|clearTarget|inspectTarget|reserve|cancel|reviewUncertain|deviceProbe|tick|operations)$',dest:'/api/web?action=$1'}]:[]),
   { src: "/(.*)", methods: ["POST","PUT","PATCH","DELETE"], status: 405 },
   { src: "/sw.js", headers: { "Cache-Control": "no-cache" }, continue: true },
   { src: "/", dest: "/index.html" }, { handle: "filesystem" }, { src: "/.*", dest: "/404.html", status: 404 }

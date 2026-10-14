@@ -1,0 +1,40 @@
+import assert from 'node:assert/strict';
+import { readFile, readdir } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { resolve, join, relative, sep } from 'node:path';
+
+// Fixed production origin. All traffic is static, public reads or unauthenticated rejection probes.
+const origin='https://neptune-charge-hub.vercel.app';
+const base=resolve('.local/static-deployment'),stage=resolve(process.argv[2]||'');
+if(!stage.startsWith(base+sep))throw Error('Provide a screened deployment directory.');
+const root=join(stage,'.vercel/output/static'),files=[];
+async function walk(dir){for(const entry of await readdir(dir,{withFileTypes:true})){const path=join(dir,entry.name);if(entry.isDirectory())await walk(path);else files.push(path);}}
+await walk(root);
+const digest=data=>createHash('sha256').update(data).digest('hex');
+let index=0,checked=0;
+await Promise.all(Array.from({length:4},async()=>{
+  while(index<files.length){const file=files[index++],path=relative(root,file).split(sep).join('/');
+    const response=await fetch(origin+'/'+path,{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(30000)});
+    assert.equal(response.status,200,'static status: '+path);
+    assert.equal(digest(Buffer.from(await response.arrayBuffer())),digest(await readFile(file)),'static mismatch: '+path);checked++;
+  }
+}));
+const home=await fetch(origin+'/',{redirect:'error'});
+assert.equal(home.status,200);assert.ok(home.headers.get('content-security-policy')?.includes("frame-ancestors 'none'"));
+assert.equal(home.headers.get('x-content-type-options'),'nosniff');
+const healthResponse=await fetch(origin+'/api/web/health',{cache:'no-store',redirect:'error'});
+assert.equal(healthResponse.status,200);const health=await healthResponse.json();assert.equal(health.schedulerReady,true);
+const nearbyResponse=await fetch(origin+'/api/nearby',{cache:'no-store',redirect:'error'});
+assert.equal(nearbyResponse.status,200);const nearby=await nearbyResponse.json();assert.ok(Array.isArray(nearby.stations)&&nearby.stations.length>0);
+assert.ok(!JSON.stringify(nearby).includes('openId'));
+for(const action of ['status','operations']){
+  const result=await fetch(origin+'/api/web/'+action,{method:'POST',headers:{'Content-Type':'application/json'},body:'{}',redirect:'error'});
+  assert.equal(result.status,401,'anonymous '+action);
+}
+const hostile=await fetch(origin+'/api/web/status',{method:'POST',headers:{Origin:'https://untrusted.example.invalid','Content-Type':'application/json'},body:'{}',redirect:'error'});
+assert.equal(hostile.status,403);assert.equal(hostile.headers.get('access-control-allow-origin'),null);
+for(const path of ['/.env','/api/windows/status','/native/windows/','/downloads/app.apk']){
+  const result=await fetch(origin+path,{redirect:'error'});assert.equal(result.status,404,'private path: '+path);
+}
+console.log(JSON.stringify({result:'PASS',staticFiles:checked,health:true,stations:nearby.stations.length,
+  sockets:nearby.stations.reduce((n,s)=>n+s.total,0),anonymousDenied:true,hostileOriginDenied:true,privatePathsDenied:true,chargingRequests:0}));

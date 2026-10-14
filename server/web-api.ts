@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { createHandler } from '../supabase/functions/_shared/handler';
 const url='https://jozlxfxhtpximjcfrhya.supabase.co';
 let handle: ReturnType<typeof createHandler> | undefined;
-const actions=new Set(['health','status','refresh','configureAccount','setTarget','clearTarget','inspectTarget','reserve','cancel','reviewUncertain','deviceProbe','tick']);
+const actions=new Set(['health','status','refresh','configureAccount','setTarget','clearTarget','inspectTarget','reserve','cancel','reviewUncertain','deviceProbe','tick','operations']);
 export default async function webApi(req:IncomingMessage,res:ServerResponse){
   res.setHeader('Cache-Control','no-store');res.setHeader('Content-Type','application/json; charset=utf-8');
   try {

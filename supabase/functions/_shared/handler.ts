@@ -2,15 +2,17 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { parsePaymentUrl, accountFingerprint, inspectWebTarget, checkWebReservation, inspectOwnOrder, probePublicDevice, NeptuneError,
   type AccountConfig, type Target, type WebQuote } from '../../../src/lib/neptune.ts';
-import { runJob, type CloudJob, type JobStore } from './runner.ts';
+import { type CloudJob, type JobStore } from './runner.ts';
+import { dispatchBatch, schedulerReady } from './dispatch.ts';
 const targetSchema=z.object({device:z.string().regex(/^\d{8}$/),port:z.string().regex(/^(0[1-9]|[1-9]\d)$/),areaId:z.number().int().positive().optional()});
 const publicBookingFields='id,device,port,scheduled_at,created_at,scheme_title,max_minutes,phase,result';
-class ApiError extends Error { constructor(message:string,readonly status=400){super(message);} }
+class ApiError extends Error { constructor(message:string,readonly status=400,readonly retryAfter?:number){super(message);} }
 type Profile={config:AccountConfig|null;target:Target|null;quote:WebQuote|null;accountHash:string|null};
 export function createHandler(admin:SupabaseClient, origins:Set<string>) {
   async function rpc(name:string,args:Record<string,unknown>={}) {
     const {data,error}=await admin.rpc(name,args);
     if(error){
+      if(error.message.includes('capacity_busy'))throw new ApiError('这个时间段预约较多，请选择其他时段。',409);
       const messages:Record<string,string>={active_plan:'已有待执行或结果不明的预约，暂不能更换授权。',legacy_plan:'已有电脑旧预约，请选择更晚的云端时间。',invalid_time:'请选择至少一分钟后、48小时内的时间。',account_changed:'授权发生变化，请重新核对。',quote_changed:'方案发生变化，请重新核对。',idempotency_conflict:'预约标识与已登记计划不一致，请刷新核对。'};
       if(error.code==='23505')throw new ApiError('已有相同账号的预约或绑定，请刷新核对。',409);
       for(const [code,message] of Object.entries(messages))if(error.message.includes(code))throw new ApiError(message,409);
@@ -27,9 +29,9 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
   async function state(user:string,targetOverride?:Target|null) {
     const [p,c,bookings]=await Promise.all([profile(user),control(),admin.from('web_reservations').select(publicBookingFields).eq('user_id',user).order('created_at',{ascending:false}).limit(100)]);
     if(bookings.error)throw new ApiError('预约记录暂不可用。',503);
-    const ready=c.scheduler?.enabled===true && Date.now()-Date.parse(c.scheduler.lastTick||'')<180000;
+    const ready=schedulerReady(c);
     const activeGuard=c.legacy_guard&&Date.parse(c.legacy_guard.until)>Date.now()?c.legacy_guard:undefined;
-    return {executor:{kind:'cloud',connected:true,exactAlarm:ready,notifications:false,detail:ready?'云端按分钟检查；可能延迟，超出十分钟窗口则停止。':'云端定时执行尚未启用，暂不能预约。'},
+    return {executor:{kind:'cloud',connected:true,exactAlarm:ready,notifications:false,detail:ready?'云端按分钟检查；可能延迟，超出十分钟窗口则停止。':'云端执行尚未就绪、延迟或状态异常，暂不能预约。'},
       profile:{accountBound:!!p.config,mailConfigured:false,recipient:''},target:targetOverride===undefined?p.target:targetOverride,quote:p.quote,
       ...(activeGuard?{legacyGuard:activeGuard}:{}),bookings:(bookings.data||[]).map(b=>({id:b.id,device:b.device,port:b.port,scheduledAt:b.scheduled_at,createdAt:b.created_at,
         schemeTitle:b.scheme_title,maxMinutes:b.max_minutes,phase:b.phase,result:b.result,mailStatus:'not-required',notificationStatus:'not-required'}))};
@@ -45,19 +47,19 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
     try{
       if(origin&&!origins.has(origin))throw new ApiError('请求来源不匹配。',403);
       if(req.method==='OPTIONS')return new Response(null,{status:204,headers:origin&&origins.has(origin)?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Methods':'POST,GET,OPTIONS',Vary:'Origin'}:{}});
-      if(action==='health'&&req.method==='GET'){const c=await control();return response(200,{app:'neptune-charge-web',schemaReady:true,schedulerReady:c.scheduler?.enabled===true&&Date.now()-Date.parse(c.scheduler.lastTick||'')<180000},origin);}
+      if(action==='health'&&req.method==='GET'){const ready=schedulerReady(await control());return response(ready?200:503,{app:'neptune-charge-web',schemaReady:true,schedulerReady:ready},origin);}
       if(req.method!=='POST')throw new ApiError('此操作只支持提交。',405);
       const bearer=req.headers.get('Authorization')?.match(/^Bearer ([^\s]{16,8192})$/)?.[1];
       if(!bearer)throw new ApiError('请先登录晨充账号。',401);
-      if(action==='tick'){
+      if(action==='tick'||action==='operations'){
         if(!await rpc('web_cron_authorized',{p_secret:bearer}))throw new ApiError('调度验证未通过。',401);
+        if(action==='operations')return response(200,await rpc('web_operations'),origin);
         const c=await control();
-        const heartbeat=await admin.from('web_control').upsert({key:'scheduler',value:{...(c.scheduler||{enabled:false}),lastTick:new Date().toISOString()}});
-        if(heartbeat.error)throw new ApiError('调度状态写入未完成。',503);
         if(c.scheduler?.enabled!==true)return response(200,{processed:0,disabled:true},origin);
-        const jobs:CloudJob[]=await rpc('web_claim_due',{p_limit:1});let processed=0;
-        for(const job of jobs){try{await runJob(job,store);processed++;}catch{/* The durable lease expires; the next run never creates a consumed request again. */}}
-        return response(200,{processed},origin);
+        const jobs:CloudJob[]=await rpc('web_claim_due',{p_limit:2});
+        const report=await dispatchBatch(jobs,store);
+        await rpc('web_dispatch_report',{p_claimed:report.claimed,p_processed:report.processed,p_failed:report.failed});
+        return response(report.failed?503:200,report,origin);
       }
       // Fresh server validation; never authorize from local session storage, user_metadata or a body user_id.
       const {data,error}=await admin.auth.getUser(bearer);
@@ -65,6 +67,10 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
       const user=data.user.id;
       let sessionId:string;try{const encoded=bearer.split('.')[1];sessionId=JSON.parse(atob(encoded.replaceAll('-','+').replaceAll('_','/'))).session_id;z.uuid().parse(sessionId);}catch{throw new ApiError('登录会话无效，请重新登录。',401);}
       if(!await rpc('web_session_active',{p_user:user,p_session:sessionId}))throw new ApiError('登录会话已结束，请重新登录。',401);
+      const bucket=action==='status'||action==='refresh'?'read':action==='cancel'||action==='reviewUncertain'?'safety':action==='reserve'?'reserve':'upstream';
+      const retry=await rpc('web_rate_limit',{p_user:user,p_bucket:bucket});
+      if(!Number.isSafeInteger(retry)||retry<0||retry>60)throw new ApiError('请求限额暂不可核对，请稍后重试。',503);
+      if(retry>0)throw new ApiError('操作过于频繁，请稍后重试；取消和结果核对使用独立限额。',429,retry);
       let raw='';const reader=req.body?.getReader(),decoder=new TextDecoder();if(reader)while(true){const part=await reader.read();if(part.done)break;raw+=decoder.decode(part.value,{stream:true});if(raw.length>16384){await reader.cancel();throw new ApiError('提交内容过长。');}}raw+=decoder.decode();
       let payload:Record<string,unknown>;try{payload=JSON.parse(raw||'{}');if(!payload||typeof payload!=='object'||Array.isArray(payload))throw Error();}catch{throw new ApiError('提交格式不正确。');}
       if(action==='status'||action==='refresh')return response(200,{state:await state(user)},origin);
@@ -84,7 +90,7 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
         await rpc('web_target',{p_user:user,p_target:checked.target,p_quote:checked.quote});
       }else if(action==='reserve'){
         const input=z.object({idempotencyKey:z.uuid(),confirmedPlug:z.literal(true),target:targetSchema,schemeId:z.string().max(32),quoteFingerprint:z.string().regex(/^[a-f0-9]{64}$/),scheduledAt:z.iso.datetime(),maxPrepayCents:z.number().int().min(1).max(1000)}).parse(payload);
-        const c=await control();if(c.scheduler?.enabled!==true||!(Date.now()-Date.parse(c.scheduler.lastTick||'')<180000))throw new ApiError('云端定时执行尚未确认，暂不能登记。',503);
+        const c=await control();if(!schedulerReady(c))throw new ApiError('云端执行延迟或状态异常，暂不能登记，请稍后重试。',503);
         const p=await profile(user);if(!p.config||!p.quote||!p.target||p.target.device!==input.target.device||p.target.port!==input.target.port||p.quote.fingerprint!==input.quoteFingerprint)throw new ApiError('目标或方案发生变化，请重新核对。',409);
         const checked=await checkWebReservation(p.config,p.target,input.schemeId,input.quoteFingerprint,input.maxPrepayCents);
         await rpc('web_reserve',{p_user:user,p_id:input.idempotencyKey,p_scheduled:input.scheduledAt,p_target:checked.target,p_scheme:checked.selected,p_cap:input.maxPrepayCents,
@@ -101,7 +107,7 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
       }else throw new ApiError('此操作不存在。',404);
       return response(200,{state:await state(user)},origin);
     }catch(error){
-      if(error instanceof ApiError)return response(error.status,{error:error.message},origin);
+      if(error instanceof ApiError){const result=response(error.status,{error:error.message},origin);if(error.retryAfter)result.headers.set('Retry-After',String(error.retryAfter));return result;}
       if(error instanceof NeptuneError)return response(400,{error:error.message},origin);
       if(error instanceof z.ZodError)return response(400,{error:'输入内容不正确，请核对后再提交。'},origin);
       return response(503,{error:'云端暂未响应，请刷新核对预约记录；不会自动重复新建开电。'},origin);

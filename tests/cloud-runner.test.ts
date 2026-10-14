@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { runJob, type CloudJob, type JobStore, type ChargePlatform } from '../supabase/functions/_shared/runner.ts';
 import { NeptuneError, type PreparedCharge } from '../src/lib/neptune.ts';
+import { dispatchBatch } from '../supabase/functions/_shared/dispatch.ts';
 const now=Date.parse('2026-10-13T22:00:00Z');
 function fixture(){
   const job:CloudJob={id:'fixture-job',phase:'checking',lease_token:'fixture-lease',scheduled_at:new Date(now).toISOString(),window_ends_at:new Date(now+600000).toISOString(),start_consumed_at:null,snapshot_cipher:'frozen',request_cipher:null};
@@ -15,6 +16,10 @@ function fixture(){
 }
 test('two deliveries race through one durable consume and only one starts charging',async()=>{
   const f=fixture();await Promise.all([runJob({...f.job},f.store,f.platform,()=>now),runJob({...f.job},f.store,f.platform,()=>now)]);assert.equal(f.starts,1);
+});
+test('100 duplicate deliveries plus recovery still make only one new charge request',async()=>{
+  const f=fixture();await Promise.all(Array.from({length:100},()=>runJob({...f.job},f.store,f.platform,()=>now)));
+  await runJob(f.job,f.store,f.platform,()=>now+180000);assert.equal(f.starts,1);
 });
 test('a lost database commit reply never reaches the wire and recovery remains uncertain',async()=>{
   const f=fixture();f.lostCommit=true;await assert.rejects(runJob(f.job,f.store,f.platform,()=>now),/lost commit/);
@@ -32,4 +37,22 @@ test('late dispatch and changed fees stop without starting; closed hours only re
   const late=fixture();await runJob(late.job,late.store,late.platform,()=>now+600001);assert.equal(late.job.phase,'missed');assert.equal(late.starts,0);
   const changed=fixture();changed.platform.prepare=async()=>{throw new NeptuneError('changed','prices');};await runJob(changed.job,changed.store,changed.platform,()=>now);assert.equal(changed.job.phase,'failed');assert.equal(changed.starts,0);
   const closed=fixture();closed.platform.prepare=async()=>{throw new NeptuneError('closed','closed');};await runJob(closed.job,closed.store,closed.platform,()=>now);assert.equal(closed.job.phase,'waiting');assert.equal(closed.finishes[0].due,new Date(now+60000).toISOString());assert.equal(closed.starts,0);
+});
+test('four admitted bookings drain with two jobs per minute despite two transient preflight failures',async()=>{
+  const fixtures=Array.from({length:4},()=>fixture());
+  const due=new Map(fixtures.map(f=>[f,now]));let attempts=0;
+  const prepare=fixtures[0].platform.prepare;
+  fixtures[0].platform.prepare=async(...args)=>{if(attempts++<2)throw new NeptuneError('fixture outage','network');return prepare(...args);};
+  for(const f of fixtures)f.platform.verify=async()=>({confirmed:true,acknowledged:true,activeOrder:true,otherOrder:false,retryable:false});
+  for(let minute=0;minute<=10;minute++){
+    const time=now+minute*60000;
+    const ready=[...due.entries()].filter(([,d])=>d<=time).sort((a,b)=>a[1]-b[1]).slice(0,2).map(([f])=>f);
+    const jobs=ready.map(f=>f.job);
+    const report=await dispatchBatch(jobs,{} as JobStore,async job=>{
+      const f=ready.find(f=>f.job===job)!;await runJob(job,f.store,f.platform,()=>time);
+      const next=f.finishes.at(-1)?.due;if(next)due.set(f,Date.parse(next));else due.delete(f);
+    });
+    assert.equal(report.failed,0);
+  }
+  assert.ok(fixtures.every(f=>f.starts===1&&f.job.phase==='confirmed'));
 });

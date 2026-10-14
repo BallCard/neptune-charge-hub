@@ -42,7 +42,7 @@ export const server=createServer(async (request, response) => {
     try{
       const chunks=[];let bytes=0;for await(const chunk of request){bytes+=chunk.length;if(bytes>20000)throw Error('Body limit');chunks.push(chunk);}
       const upstream=await fetch('https://neptune-charge-hub.vercel.app/api/web/'+action,{method:request.method,headers:{Origin:hubOrigin,...(request.headers.authorization?{Authorization:request.headers.authorization}:{}),'Content-Type':'application/json'},body:request.method==='POST'?Buffer.concat(chunks):undefined,redirect:'error',signal:AbortSignal.timeout(30000)});
-      const result=await upstream.json();jsonReply(response,upstream.status,result);
+      const result=await upstream.json();const retry=upstream.headers.get('Retry-After');if(retry&&/^\d{1,2}$/.test(retry))response.setHeader('Retry-After',retry);jsonReply(response,upstream.status,result);
     }catch{jsonReply(response,503,{error:'云端暂未响应，请刷新核对预约记录。'});}return;
   }
   if(request.url==='/api/nearby'){

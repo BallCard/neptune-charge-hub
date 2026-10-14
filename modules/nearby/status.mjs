@@ -1,10 +1,15 @@
 import { readFile } from 'node:fs/promises';
 const states={0:'free',1:'used',3:'fault'};
 export async function fetchDevice(id) {
-  const response=await fetch('http://www.szlzxn.cn/wxn/getDeviceInfo',{method:'POST',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({areaId:'6',devaddress:String(id)}),signal:AbortSignal.timeout(4000)});
-  if(!response.ok)throw new Error('设备暂不可连接');
-  const result=await response.json();
-  if(result.success!==true||!result.obj||typeof result.obj.portstatur!=='string'||!result.obj.portstatur||result.obj.portstatur.length>99)throw new Error('设备返回格式异常');
+  if(!/^\d{8}$/.test(String(id)))throw new Error('设备编号异常');
+  const endpoint='https://www.szlzxn.cn/wxn/getDeviceInfo';
+  const response=await fetch(endpoint,{method:'POST',redirect:'error',headers:{'Content-Type':'application/x-www-form-urlencoded'},body:new URLSearchParams({areaId:'6',devaddress:String(id)}),signal:AbortSignal.timeout(4000)});
+  if(!response.ok||response.redirected||(response.url&&response.url!==endpoint)){await response.body?.cancel();throw new Error('设备暂不可连接');}
+  if(!response.body)throw new Error('设备返回为空');
+  const reader=response.body.getReader(),decoder=new TextDecoder();let raw='',bytes=0;
+  while(true){const part=await reader.read();if(part.done)break;bytes+=part.value.byteLength;if(bytes>1000000){await reader.cancel();throw new Error('设备返回过长');}raw+=decoder.decode(part.value,{stream:true});}
+  const result=JSON.parse(raw+decoder.decode());
+  if(result?.success!==true||!result.obj||String(result.obj.devaddress)!==String(id)||typeof result.obj.portstatur!=='string'||!result.obj.portstatur||result.obj.portstatur.length>99)throw new Error('设备返回格式异常');
   return result.obj;
 }
 export async function nearbyStatus(stations,reader=fetchDevice) {
