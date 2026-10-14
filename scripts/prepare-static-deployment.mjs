@@ -17,7 +17,7 @@ async function walk(directory, prefix = "") {
 }
 await walk(out);
 for (const { path, data } of files) {
-  if (!/\.(html|js|css|txt|json|svg|png|webmanifest|wasm)$/.test(path) || data.length > 5_000_000) throw new Error("Unexpected static asset: " + path);
+  if (!/\.(html|js|css|txt|json|svg|png|webmanifest|wasm|woff2)$/.test(path) || data.length > 5_000_000) throw new Error("Unexpected static asset: " + path);
   if (/(?:sb_secret_[A-Za-z0-9_-]{16,}|SUPABASE_SERVICE_ROLE_KEY|\/api\/hub|qnvtuuwvloddxvhmppcd|openId=test-local-only)/.test(data.toString("utf8"))) throw new Error("Cloud or test credential marker in asset: " + path);
 }
 if (!files.some(f => f.path === "index.html") || !files.some(f => f.path === "sw.js")) throw new Error("Build the static app first.");

@@ -9,7 +9,7 @@ import { cloudAction } from '@/lib/cloud-executor';
 import { emptyWorkflow, type QrTarget, type WorkflowState } from '@/lib/workflow-types';
 import { parseQrTarget, parseSocketNumber } from '@/lib/qr-target';
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<WorkflowTab>('charge');
+  const [activeTab, setActiveTab] = useState<WorkflowTab>('nearby');
   const [state, setState] = useState<WorkflowState>(emptyWorkflow), [busy, setBusy] = useState(false), [signedIn, setSignedIn] = useState<string | null>(null);
   const busyRef = useRef(false);
   const ownerRef = useRef<string | null>(null);
@@ -49,7 +49,7 @@ export default function Home() {
     });
   }
   useEffect(() => { const show = () => setActiveTab('nearby'); window.addEventListener('neptune-show-nearby', show); return () => window.removeEventListener('neptune-show-nearby', show); }, []);
-  return <><ChargeWorkflow key={signedIn||'guest'} state={state} busy={busy} onAction={action} activeTab={activeTab} onTabChange={setActiveTab} accountPanel={<CloudAccount onSession={onSession}/>} nearbyPanel={<NearbyPanel active={activeTab === 'nearby'} busy={busy} target={state.target} onReturn={() => setActiveTab('charge')} onSelect={async number => { await action('setTarget', { number }); setActiveTab('charge'); }}/>}>
+  return <><ChargeWorkflow key={signedIn||'guest'} state={state} busy={busy} onAction={action} activeTab={activeTab} onTabChange={setActiveTab} accountPanel={<CloudAccount onSession={onSession}/>} nearbyPanel={<NearbyPanel active={activeTab === 'nearby'} busy={busy} target={state.target} onReturn={() => setActiveTab('charge')} onSelect={async number => { await action('setTarget', { number }); }}/>}>
     <WindowsPanel readOnly/>
   </ChargeWorkflow><Welcome/></>;
 }

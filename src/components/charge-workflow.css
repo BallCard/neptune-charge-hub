@@ -32,7 +32,7 @@
   flex-direction: column;
   background-color: var(--cw-bg);
   color: var(--cw-text);
-  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  font-family: inherit;
   position: relative;
   overflow: hidden;
 }

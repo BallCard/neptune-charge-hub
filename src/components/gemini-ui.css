@@ -1,0 +1,122 @@
+/* Layout and palette adapted from the supplied Gemini design; Hub owns all data and actions. */
+.cw-app {
+  --cw-bg: #f8fafc;
+  --cw-text: #0f172a;
+  --cw-muted: #64748b;
+  --cw-border: #cbd5e1;
+  --cw-primary: #0f4c3a;
+  --cw-primary-hover: #0a3629;
+  --cw-primary-active: #0a3629;
+  max-width: none;
+}
+.cw-app .cw-header { height: calc(64px + env(safe-area-inset-top, 0px)); padding-inline: 16px; border-color: #e2e8f0; }
+.cw-header-inner { display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; max-width: 896px; margin: auto; }
+.cw-app .cw-brand { align-items: center; gap: 9px; flex-shrink: 0; }
+.cw-brand img { border-radius: 10px; }
+.cw-app .cw-logo-title { font-size: 16px; line-height: 1.3; }
+.cw-app .cw-logo-subtitle { font-size: 11px; }
+.cw-header-actions { display: flex; gap: 6px; }
+.cw-app .cw-header-help-btn { border: 1px solid #cbd5e1; border-radius: 12px; padding: 0 10px; font-size: 12px; font-weight: 600; color: #334155; }
+.cw-app .cw-header-help-btn[aria-current] { background: #ecfdf5; color: #0f4c3a; border-color: #a7f3d0; }
+.cw-desktop-nav { display: none; }
+.cw-app .cw-main { width: 100%; max-width: 768px; margin: 0 auto; }
+.cw-app .cw-panel { padding: 20px 24px 28px; gap: 16px; }
+.cw-page-heading { flex-shrink: 0; }
+.cw-page-heading h2 { margin: 0; font-size: 20px; letter-spacing: -.4px; }
+.cw-page-heading p { margin: 6px 0 0; color: #64748b; font-size: 13px; line-height: 1.6; }
+.cw-app .cw-card { border-radius: 16px; border-color: #cbd5e1; box-shadow: 0 1px 2px #0f172a05; }
+.cw-app .cw-task-card { padding: 4px 20px; }
+.cw-app .cw-task-row { display: flex; flex-direction: column; gap: 10px; padding: 17px 0; }
+.cw-app .cw-field-label, .cw-app .cw-field-label-group { width: auto; padding: 0; font-size: 13px; }
+.cw-app .cw-field-label-group { flex-direction: row; align-items: center; gap: 8px; }
+.cw-app .cw-field-body { width: 100%; flex: auto; }
+.cw-app .cw-field-sub { font-size: 12px; margin: 0; }
+.cw-app .cw-task-row:last-child .cw-field-label-group { margin: 0; }
+.cw-app .cw-target-main { background: #f8fafc; border: 1px solid #e2e8f0; padding: 12px; border-radius: 12px; }
+.cw-app .cw-target-device { font-size: 16px; }
+.cw-app .cw-target-port { color: #0f4c3a; background: #ecfdf5; border-radius: 6px; padding: 4px 6px; }
+.cw-app .cw-status-bar { margin: 0; }
+.cw-app .cw-status-tag--action, .cw-app .cw-banner-active { background: #ecfdf5; border-color: #a7f3d0; color: #0f4c3a; }
+.cw-app .cw-btn-primary { font-weight: 600; border-radius: 12px; }
+.cw-app .cw-btn-secondary { background: #fff; border-radius: 12px; }
+.cw-app .cw-action-section { padding: 16px; background: white; border: 1px solid #cbd5e1; border-radius: 16px; flex-shrink: 0; }
+.cw-app .cw-checkbox-row input { accent-color: #0f4c3a; }
+.cw-app .cw-setting-card { padding: 16px; flex-shrink: 0; }
+.cw-app .cw-setting-desc { font-size: 12px; line-height: 1.7; }
+.cw-app .cw-records-header { align-items: center; justify-content: space-between; gap: 10px; }
+.cw-app .cw-empty-slot { background: #fff; border: 1px dashed #cbd5e1; border-radius: 16px; padding: 56px 16px; }
+.cw-app .cw-nav { grid-template-columns: repeat(3, 1fr); height: calc(68px + env(safe-area-inset-bottom, 0px)); padding-inline: max(12px, calc((100vw - 440px) / 2)); border-color: #e2e8f0; }
+.cw-app .cw-nav-item { gap: 5px; }
+.cw-app .cw-nav-text { font-size: 11px; }
+.cw-app .cw-nav-item--active .cw-nav-badge-wrap { background: #ecfdf5; border-radius: 9px; box-shadow: 0 0 0 5px #ecfdf5; }
+.cw-app .cw-nearby-panel { background: transparent; border: 0; }
+.cw-app .cw-nearby-panel .cw-integration-heading { padding: 0 0 18px; }
+.cw-nearby-panel .cw-integration-heading > svg { display: none; }
+.cw-app .cw-nearby-panel .cw-integration-heading h2 { font-size: 20px; }
+.cw-app .cw-nearby-panel .cw-integration-heading p { font-size: 13px; }
+.cw-nearby-panel .cw-integration-heading strong { color: #0f4c3a; }
+.cw-app .cw-nearby-panel .cw-integration-heading { justify-content: space-between; gap: 8px; }
+.cw-app .cw-nearby-panel .cw-integration-toolbar { flex-wrap: nowrap; gap: 5px; }
+.cw-app .cw-nearby-panel .cw-integration-toolbar button { padding: 8px; font-size: 12px; white-space: nowrap; }
+.cw-search-row { display: flex; gap: 8px; align-items: center; }
+.cw-search-row .cw-integration-input { flex: 1; }
+.cw-app .cw-filter-button { flex-shrink: 0; font-size: 12px; }
+.cw-app .cw-filter-button[aria-pressed=true] { background: #0f4c3a; color: #fff; border-color: #0f4c3a; }
+.cw-app .cw-nearby-panel .cw-integration-content { padding: 0; gap: 12px; }
+.cw-app .cw-integration button, .cw-app .cw-nav-links a { color: #0f4c3a; }
+.cw-app .cw-integration .cw-btn-primary { background: #0f4c3a; border-color: #0f4c3a; color: #fff; }
+.cw-app .cw-integration .cw-btn-primary:disabled { color: #526078; background: #e2e7f0; border-color: #e2e7f0; }
+.cw-app .cw-integration-check { min-height: 32px; font-size: 13px; }
+.cw-app .cw-integration-check input { accent-color: #0f4c3a; }
+.cw-app .cw-integration-note { font-size: 12px; }
+.cw-app .cw-stations { gap: 14px; }
+.cw-app .cw-station { background: #fff; border-color: #cbd5e1; border-radius: 16px; }
+.cw-app .cw-station > summary { padding: 16px; gap: 12px; }
+.cw-station > summary > span:first-child { flex: 1; min-width: 0; }
+.cw-app .cw-station > summary strong { font-size: 15px; }
+.cw-app .cw-station small { font-size: 12px; }
+.cw-app .cw-free-count { font-size: 21px; color: #0f4c3a; }
+.cw-app .cw-station-content { padding: 14px 16px 16px; border-top: 1px solid #f1f5f9; background: #fafafa; }
+.cw-app .cw-ports { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+.cw-app .cw-ports .cw-port { flex-direction: column; gap: 0; min-height: 54px; font-weight: 700; }
+.cw-app .cw-ports .cw-port small { font-size: 10px; font-weight: 400; color: inherit; margin-top: 2px; }
+.cw-app .cw-ports .cw-port-free { background: #ecfdf5; border-color: #a7f3d0; color: #0f4c3a; }
+.cw-app .cw-ports .cw-port-used { color: #64748b; }
+.cw-app .cw-ports .cw-port-fault { color: #a12b24; }
+.cw-app .cw-port[aria-pressed=true] { background: #0f4c3a; color: #fff; outline-color: #0f4c3a; }
+.cw-app .cw-selected-socket { background: #f0fdf4; border: 1px solid #86efac; color: #14532d; border-radius: 14px; }
+.cw-app .cw-selected-socket button { background: #0f4c3a; color: #fff; border-color: #0f4c3a; }
+.cw-port-legend { display: flex; gap: 14px; font-size: 12px; color: #64748b; }
+.cw-port-legend span:first-child { color: #0f4c3a; }
+.cw-port-legend span:nth-child(3) { color: #a12b24; }
+.cw-map-dialog { width: min(440px, calc(100vw - 28px)); max-height: 85dvh; padding: 20px; border: 1px solid #cbd5e1; border-radius: 20px; color: #0f172a; }
+.cw-map-dialog::backdrop { background: #0f172a66; backdrop-filter: blur(3px); }
+.cw-map-heading { display: flex; align-items: start; justify-content: space-between; gap: 10px; }
+.cw-map-heading h2 { margin: 0; font-size: 18px; }
+.cw-map-heading p { font-size: 12px; color: #64748b; }
+.cw-map-dialog .cw-nav-links { margin-top: 16px; }
+@media (min-width: 768px) {
+  .cw-desktop-nav { display: flex; align-items: center; gap: 4px; padding: 4px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; }
+  .cw-desktop-nav .cw-nav-item { padding: 0 18px; border-radius: 8px; min-height: 36px; }
+  .cw-desktop-nav .cw-nav-badge-wrap { display: none; }
+  .cw-desktop-nav .cw-nav-text { font-size: 13px; }
+  .cw-desktop-nav .cw-nav-item--active { background: #fff; box-shadow: 0 1px 2px #0f172a0d; }
+  .cw-app > .cw-nav { display: none; }
+}
+@media (max-width: 600px) {
+  .cw-app .cw-panel { padding: 18px 14px 24px; }
+  .cw-app .cw-ports { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+  .cw-app .cw-task-card { padding-inline: 16px; }
+}
+@media (max-width: 360px) {
+  .cw-app .cw-header { padding-inline: 10px; }
+  .cw-header-inner { gap: 8px; }
+  .cw-app .cw-panel { padding-inline: 10px; }
+  .cw-app .cw-station > summary { padding: 12px; gap: 8px; }
+  .cw-app .cw-station-content { padding-inline: 12px; }
+  .cw-app .cw-station > summary strong { font-size: 14px; }
+  .cw-app .cw-task-card { padding-inline: 12px; }
+}
+
+/* Preserve double-tap activation without browser double-tap zoom. */
+.cw-app .cw-ports .cw-port { touch-action: manipulation; }

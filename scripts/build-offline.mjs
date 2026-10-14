@@ -8,7 +8,7 @@ async function walk(directory, prefix = "") {
   for (const item of await readdir(directory, { withFileTypes: true })) {
     const relative = prefix + item.name;
     if (item.isDirectory()) paths.push(...await walk(join(directory, item.name), relative + "/"));
-    else if (/\.(?:js|css|png|svg|webmanifest|wasm)$/.test(item.name) || relative === "index.html") paths.push("/" + relative);
+    else if (/\.(?:js|css|png|svg|webmanifest|wasm|woff2)$/.test(item.name) || relative === "index.html") paths.push("/" + relative);
   }
   return paths;
 }

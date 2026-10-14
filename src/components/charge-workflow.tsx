@@ -1,6 +1,8 @@
 "use client";
 import React, { useState, useEffect, useMemo, useRef } from "react";
 import "./charge-workflow.css";
+import "./gemini-ui.css";
+import { GeminiHeader, GeminiNavigation } from "./gemini-shell";
 import {
   Zap,
   MapPin,
@@ -264,21 +266,7 @@ export default function ChargeWorkflow({
 
   return (
     <div className="cw-app" aria-busy={busy}>
-      <header className="cw-header">
-        <div className="cw-brand">
-          <h1 className="cw-logo-title">晨充</h1>
-          <span className="cw-logo-subtitle">今晚接好 · 明早开电</span>
-        </div>
-        <button
-          type="button"
-          className="cw-header-help-btn"
-          aria-label="新手指引"
-          onClick={() => window.dispatchEvent(new Event("neptune-show-welcome"))}
-        >
-          <HelpCircle className="cw-icon-sm" />
-          <span>新手指引</span>
-        </button>
-      </header>
+      <GeminiHeader activeTab={activeTab} onTabChange={onTabChange}/>
 
       {displayError && (
         <div className="cw-alert" role="alert">
@@ -306,6 +294,7 @@ export default function ChargeWorkflow({
           hidden={activeTab !== "charge"}
           className="cw-panel cw-panel-charge"
         >
+          <div className="cw-page-heading"><h2>预约充电</h2></div>
           {activeBooking && (
             <button
               type="button"
@@ -341,7 +330,7 @@ export default function ChargeWorkflow({
           <div className="cw-card cw-task-card">
             {/* Section: 设备插座 */}
             <div className="cw-task-row">
-              <span className="cw-field-label">设备插座</span>
+              <span className="cw-field-label">插座</span>
               <div className="cw-field-body">
                 <div className="cw-target-main">
                   {state.target ? (
@@ -368,7 +357,7 @@ export default function ChargeWorkflow({
                     target="_blank"
                     rel="noopener noreferrer"
                   >
-                    <span>官方付款页入口</span>
+                    <span>官方付款页</span>
                     <ExternalLink className="cw-icon-xs" />
                   </a>
                 )}
@@ -395,7 +384,7 @@ export default function ChargeWorkflow({
                   <div className="cw-bound-row">
                     <span className="cw-bound-text">
                       <ShieldCheck className="cw-icon-xs cw-text-green" />
-                      <span>本人付款授权已保存</span>
+                      <span>已授权</span>
                     </span>
                     <button
                       type="button"
@@ -464,7 +453,7 @@ export default function ChargeWorkflow({
 
             {/* Section: 充电套餐 */}
             <div className="cw-task-row">
-              <span className="cw-field-label">充电套餐</span>
+              <span className="cw-field-label">套餐</span>
               <div className="cw-field-body">
                 {state.target && state.profile.accountBound ? (
                   isQuoteMatching ? (
@@ -532,7 +521,7 @@ export default function ChargeWorkflow({
             {/* Section: 预约时间 */}
             <div className="cw-task-row">
               <div className="cw-field-label-group">
-                <span className="cw-field-label">预约时间</span>
+                <span className="cw-field-label">时间</span>
                 <span className="cw-field-sub">北京时间</span>
               </div>
               <div className="cw-field-body">
@@ -561,6 +550,30 @@ export default function ChargeWorkflow({
             </div>
           </div>
 
+            <div className="cw-card cw-setting-card">
+              <div className="cw-setting-row">
+                <label htmlFor="cw-max-prepay-input" className="cw-setting-label">
+                  单次预扣上限 (元)
+                </label>
+                <input
+                  id="cw-max-prepay-input"
+                  aria-label="单次预扣上限（元）"
+                  disabled={busy}
+                  type="number"
+                  min="0.01"
+                  max="10"
+                  step="0.01"
+                  className="cw-input cw-input-sm cw-w-24"
+                  value={maxPrepayInput}
+                  onChange={(e) => setMaxPrepayInput(e.target.value)}
+                />
+              </div>
+              <p className="cw-setting-desc">
+                超出上限不执行，最高 10 元。
+              </p>
+            </div>
+
+
           {/* 确认接线与主提交区 */}
           <div className="cw-action-section">
             <label className="cw-checkbox-row">
@@ -571,7 +584,7 @@ export default function ChargeWorkflow({
                 onChange={(e) => setConfirmedPlug(e.target.checked)}
               />
               <span className="cw-checkbox-text">
-                确认已插好充电线，当前插座、时间和套餐核对无误
+                已接好充电线，并核对插座、时间和套餐
               </span>
             </label>
 
@@ -607,7 +620,7 @@ export default function ChargeWorkflow({
               {!canReserve && reserveBlockHint ? (
                 <span className="cw-text-hint cw-text-hint--alert">{reserveBlockHint}</span>
               ) : (
-                <span className="cw-text-hint">预约生效后由云端执行，结果在记录查看</span>
+                <span className="cw-text-hint">生效后可关闭网页</span>
               )}
             </div>
           </div>
@@ -640,16 +653,17 @@ export default function ChargeWorkflow({
           hidden={activeTab !== "records"}
           className="cw-panel cw-panel-scrollable"
         >
+          <div className="cw-page-heading"><h2>我的预约</h2></div>
           <div className="cw-records-container">
             <div className="cw-records-header">
               <span className="cw-records-title">全部记录 ({state.bookings.length})</span>
+              <button className="cw-btn-secondary cw-btn-compact" disabled={busy || !state.executor.connected} onClick={() => wrapAction("refresh", {})}>刷新记录</button>
             </div>
 
             {state.bookings.length === 0 ? (
               <div className="cw-empty-slot">
                 <Clock className="cw-icon-lg cw-text-muted" />
                 <p className="cw-empty-title">暂无预约记录</p>
-                <p className="cw-text-sm cw-text-muted">成功创建预约后将在此显示执行状态</p>
               </div>
             ) : (
               <div className="cw-bookings-list">
@@ -745,38 +759,15 @@ export default function ChargeWorkflow({
           hidden={activeTab !== "account"}
           className="cw-panel cw-panel-scrollable"
         >
+          <div className="cw-page-heading"><h2>账号与设置</h2></div>
           <div className="cw-account-container">
             {accountPanel && <div className="cw-account-slot">{accountPanel}</div>}
             {executorPanel && <div className="cw-executor-slot">{executorPanel}</div>}
 
             <div className="cw-card cw-setting-card">
-              <div className="cw-setting-row">
-                <label htmlFor="cw-max-prepay-input" className="cw-setting-label">
-                  单次预扣上限 (元)
-                </label>
-                <input
-                  id="cw-max-prepay-input"
-                  aria-label="单次预扣上限（元）"
-                  disabled={busy}
-                  type="number"
-                  min="0.01"
-                  max="10"
-                  step="0.01"
-                  className="cw-input cw-input-sm cw-w-24"
-                  value={maxPrepayInput}
-                  onChange={(e) => setMaxPrepayInput(e.target.value)}
-                />
-              </div>
-              <p className="cw-setting-desc">
-                套餐预扣款超出此限值时将拒绝提交预约，保护资金安全。最高支持 10 元。
-              </p>
-            </div>
-
-            <div className="cw-card cw-setting-card">
               <div className="cw-guide-entry-row">
                 <div className="cw-guide-text-group">
-                  <span className="cw-guide-title">新手指引与帮助</span>
-                  <span className="cw-guide-desc">查看获取本人微信付款授权的方法</span>
+                  <span className="cw-guide-title">使用教程</span>
                 </div>
                 <button
                   type="button"
@@ -788,65 +779,12 @@ export default function ChargeWorkflow({
               </div>
             </div>
 
-            <div className="cw-card cw-setting-card">
-              <div className="cw-cloud-info">
-                <span className="cw-cloud-title">云端执行说明</span>
-                <p className="cw-cloud-desc">
-                  预约生效后可以关闭网页，云端到点核对并尝试开电。调度可能延迟，超出执行窗口则记录未执行；结果在「记录」查看，并与微信本人订单核对。
-                </p>
-              </div>
-            </div>
-
             {children && <div className="cw-children-slot">{children}</div>}
           </div>
         </section>
       </main>
 
-      {/* 底部固定导航栏 */}
-      <nav className="cw-nav" aria-label="底栏导航">
-        <button
-          type="button"
-          className={`cw-nav-item ${activeTab === "charge" ? "cw-nav-item--active" : ""}`}
-          aria-current={activeTab === "charge" ? "page" : undefined}
-          onClick={() => onTabChange("charge")}
-        >
-          <Zap className="cw-nav-icon" />
-          <span className="cw-nav-text">晨充</span>
-        </button>
-
-        <button
-          type="button"
-          className={`cw-nav-item ${activeTab === "nearby" ? "cw-nav-item--active" : ""}`}
-          aria-current={activeTab === "nearby" ? "page" : undefined}
-          onClick={() => onTabChange("nearby")}
-        >
-          <MapPin className="cw-nav-icon" />
-          <span className="cw-nav-text">找空位</span>
-        </button>
-
-        <button
-          type="button"
-          className={`cw-nav-item ${activeTab === "records" ? "cw-nav-item--active" : ""}`}
-          aria-current={activeTab === "records" ? "page" : undefined}
-          onClick={() => onTabChange("records")}
-        >
-          <div className="cw-nav-badge-wrap">
-            <Clock className="cw-nav-icon" />
-            {hasActiveBooking && <span className="cw-nav-dot" />}
-          </div>
-          <span className="cw-nav-text">记录</span>
-        </button>
-
-        <button
-          type="button"
-          className={`cw-nav-item ${activeTab === "account" ? "cw-nav-item--active" : ""}`}
-          aria-current={activeTab === "account" ? "page" : undefined}
-          onClick={() => onTabChange("account")}
-        >
-          <User className="cw-nav-icon" />
-          <span className="cw-nav-text">我的</span>
-        </button>
-      </nav>
+      <GeminiNavigation activeTab={activeTab} onTabChange={onTabChange} hasActiveBooking={hasActiveBooking}/>
     </div>
   );
 }

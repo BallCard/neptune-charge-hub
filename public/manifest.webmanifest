@@ -2,7 +2,7 @@
   "id": "/", "name": "晨充 · 云端充电预约", "short_name": "晨充",
   "description": "查玉泉充电空位，填写本人付款链接，核对插座、套餐与开电时间，预约由云端执行。",
   "start_url": "/", "scope": "/", "display": "standalone", "lang": "zh-CN",
-  "background_color": "#f3f5f8", "theme_color": "#f3f5f8",
+  "background_color": "#f8fafc", "theme_color": "#f8fafc",
   "icons": [{ "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
     { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }]
 }

@@ -1,0 +1,5 @@
+Noto Serif SC Variable
+@fontsource-variable/noto-serif-sc 5.3.1
+https://fontsource.org/fonts/noto-serif-sc
+https://github.com/fontsource/font-files/tree/main/fonts/variable/noto-serif-sc
+OFL-1.1; original unmodified WOFF2 files. Unicode-range stylesheet copied from package index.css; URLs adapted for same-origin hosting.

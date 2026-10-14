@@ -26,7 +26,7 @@ async function windowsRequest(action,body){
   return {status:result.status,body:await result.json()};
 }
 const types = { ".html": "text/html; charset=utf-8", ".js": "text/javascript; charset=utf-8", ".css": "text/css; charset=utf-8",
-  ".svg": "image/svg+xml", ".png": "image/png", ".wasm": "application/wasm", ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8", ".json": "application/json", ".apk": "application/vnd.android.package-archive" };
+  ".woff2": "font/woff2", ".svg": "image/svg+xml", ".png": "image/png", ".wasm": "application/wasm", ".webmanifest": "application/manifest+json", ".txt": "text/plain; charset=utf-8", ".json": "application/json", ".apk": "application/vnd.android.package-archive" };
 const cloud=JSON.parse(await readFile(join(root,'cloud-config.json'),'utf8').catch(()=>'{}'));
 if(cloud.url&&!/^https:\/\/[a-z]{20}\.supabase\.co$/.test(cloud.url))throw Error('Invalid cloud endpoint');
 const csp = `default-src 'self'; script-src 'self' 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; connect-src 'self' ${cloud.url||''}; worker-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'`;

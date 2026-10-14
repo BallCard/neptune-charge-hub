@@ -33,7 +33,7 @@ export default function CloudAccount({ onSession }: { onSession: (userId: string
     finally { setPending(false); }
   }
   return <section className="cw-integration cw-cloud-account">
-    <header className="cw-integration-heading"><div><h2>{identity ? '晨充账号' : '登录晨充'}</h2><p>{configured ? identity ? '账号已登录' : '登录后同步预约与记录' : '正在连接云端…'}</p></div></header>
+    <header className="cw-integration-heading"><div><h2>{identity ? '晨充账号' : '登录晨充'}</h2>{!configured && <p>连接中…</p>}</div></header>
     <div className="cw-integration-content">
       {identity ? <><p className="cw-integration-note">{identity}</p><button className="cw-btn-secondary" disabled={pending} onClick={async () => { setPending(true); try { const client = await cloudClient(); const result = await client?.auth.signOut(); if (result?.error) throw new Error('退出未完成，请稍后再试。'); setMessage(''); } catch(error) { setMessage(error instanceof Error ? error.message : '退出未完成。'); } finally { setPending(false); } }}>退出登录</button></> : <>
         <label className="cw-access-label" htmlFor="cloud-email">晨充账号邮箱</label><input id="cloud-email" className="cw-input" type="email" autoComplete="username" placeholder="邮箱" value={email} onChange={event => setEmail(event.target.value)} disabled={!configured || pending}/>
@@ -41,7 +41,7 @@ export default function CloudAccount({ onSession }: { onSession: (userId: string
         <div className="cw-row cw-mt-8"><button className="cw-btn-primary" disabled={!configured || pending} onClick={() => void authenticate(false)}>{pending ? '处理中…' : '登录'}</button><button className="cw-btn-secondary" disabled={!configured || pending} onClick={() => void authenticate(true)}>注册</button></div>
       </>}
       {message && <p className="cw-integration-warning" role="status">{message}</p>}
-      <p className="cw-integration-note">注册需确认邮箱，仅用于账号验证。充电结果在“记录”查看，不发送邮件提醒。</p>
+      {!identity && <p className="cw-integration-note">注册后请到邮箱确认。</p>}
     </div>
   </section>;
 }
