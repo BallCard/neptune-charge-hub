@@ -5,18 +5,25 @@ import { resolve, join, relative, sep } from 'node:path';
 
 // Fixed production origin. All traffic is static, public reads or unauthenticated rejection probes.
 const origin='https://neptune-charge-hub.vercel.app';
+const deployment=process.argv[3]||'';
+if(deployment&&!/^dpl_[A-Za-z0-9]+$/.test(deployment))throw Error('Invalid deployment ID.');
+// Exact reviewed Vercel opt-in toolbar shim; permit no other appended source.
+const toolbar='\n'+String.raw`;(function(){try{if(typeof document==="undefined"||!/(?:^|;\s)__vercel_toolbar=1(?:;|$)/.test(document.cookie))return;}catch(e){return;}var s=document.createElement('script');s.src='https://vercel.live/_next-live/feedback/feedback.js';s.setAttribute("data-explicit-opt-in","true");s.setAttribute("data-cookie-opt-in","true");s.setAttribute("data-deployment-id","DEPLOYMENT_ID");((document.head||document.documentElement).appendChild(s))})();`.replace('DEPLOYMENT_ID',deployment);
 const base=resolve('.local/static-deployment'),stage=resolve(process.argv[2]||'');
 if(!stage.startsWith(base+sep))throw Error('Provide a screened deployment directory.');
 const root=join(stage,'.vercel/output/static'),files=[];
 async function walk(dir){for(const entry of await readdir(dir,{withFileTypes:true})){const path=join(dir,entry.name);if(entry.isDirectory())await walk(path);else files.push(path);}}
 await walk(root);
 const digest=data=>createHash('sha256').update(data).digest('hex');
-let index=0,checked=0;
+let index=0,checked=0,platformToolbarFiles=0;
 await Promise.all(Array.from({length:4},async()=>{
   while(index<files.length){const file=files[index++],path=relative(root,file).split(sep).join('/');
     const response=await fetch(origin+'/'+path,{cache:'no-store',redirect:'error',signal:AbortSignal.timeout(30000)});
     assert.equal(response.status,200,'static status: '+path);
-    assert.equal(digest(Buffer.from(await response.arrayBuffer())),digest(await readFile(file)),'static mismatch: '+path);checked++;
+    const remote=Buffer.from(await response.arrayBuffer()),local=await readFile(file);
+    if(!remote.equals(local)&&deployment&&/^_next\/static\/chunks\/turbopack-[^/]+\.js$/.test(path)&&remote.subarray(0,local.length).equals(local)&&remote.subarray(local.length).toString()===toolbar)platformToolbarFiles++;
+    else assert.equal(digest(remote),digest(local),'static mismatch: '+path);
+    checked++;
   }
 }));
 const home=await fetch(origin+'/',{redirect:'error'});
@@ -36,5 +43,5 @@ assert.equal(hostile.status,403);assert.equal(hostile.headers.get('access-contro
 for(const path of ['/.env','/api/windows/status','/native/windows/','/downloads/app.apk']){
   const result=await fetch(origin+path,{redirect:'error'});assert.equal(result.status,404,'private path: '+path);
 }
-console.log(JSON.stringify({result:'PASS',staticFiles:checked,health:true,stations:nearby.stations.length,
+console.log(JSON.stringify({result:'PASS',staticFiles:checked,exactFiles:checked-platformToolbarFiles,platformToolbarFiles,health:true,stations:nearby.stations.length,
   sockets:nearby.stations.reduce((n,s)=>n+s.total,0),anonymousDenied:true,hostileOriginDenied:true,privatePathsDenied:true,chargingRequests:0}));
