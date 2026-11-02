@@ -32,3 +32,7 @@
 .cw-guide-wide .cw-guide-screenshot img { width: 100%; height: auto; }
 .cw-guide-wide .cw-guide-zoom { bottom: 5px; right: 5px; }
 .cw-guide-wide .cw-guide-focus { width: 36px; height: 36px; }
+.cw-welcome { position: fixed; width: min(460px, calc(var(--cw-frame-width, 100vw) - 24px)); max-height: calc(var(--cw-frame-height, var(--cw-viewport-height, 100dvh)) - 24px); left: calc(var(--cw-frame-x, 0px) + var(--cw-frame-width, 100vw) / 2); top: calc(var(--cw-frame-y, 0px) + var(--cw-frame-height, var(--cw-viewport-height, 100dvh)) / 2); margin: 0; transform: translate(-50%, -50%); }
+.cw-welcome-panel { max-height: calc(var(--cw-frame-height, var(--cw-viewport-height, 100dvh)) - 26px); }
+.cw-guide-screenshot { height: clamp(180px, calc(var(--cw-frame-height, var(--cw-viewport-height, 100dvh)) - 390px), 380px); max-width: 100%; }
+@container cw-screen (max-width: 360px) { .cw-welcome-body { padding-inline: 18px; }.cw-guide-copy h2 { font-size: 22px; }.cw-welcome-footer { padding-inline: 14px; } }

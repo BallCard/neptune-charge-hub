@@ -53,6 +53,15 @@ try {
     create view vault.decrypted_secrets as select name,secret as decrypted_secret from vault.secrets;
     create function vault.create_secret(s text,n text) returns uuid language sql as $$ insert into vault.secrets(name,secret) values(n,s) returning id $$;
     create schema net; create function net.http_post(url text,headers jsonb,body jsonb,timeout_milliseconds integer) returns bigint language plpgsql as $$ begin raise exception 'NETWORK_DISABLED_IN_ISOLATED_TEST'; end $$;
+    create sequence net.fixture_requests;
+    create table net.http_request_queue(id bigint,url text,params jsonb);
+    create table net._http_response(id bigint,status_code integer,content text);
+    create function net.http_get(url text,params jsonb,timeout_milliseconds integer) returns bigint language plpgsql as $$
+      declare id bigint:=nextval('net.fixture_requests'); begin
+      if url<>'https://www.szlzxn.cn/wxn/getDeviceInfo' or params->>'areaId'<>'6' then raise exception 'UNEXPECTED_DESTINATION'; end if;
+      insert into net.http_request_queue values(id,url,params);return id;end $$;
+    grant usage on schema net to service_role;grant usage on sequence net.fixture_requests to service_role;
+    grant select,insert on net.http_request_queue to service_role;grant select on net._http_response to service_role;
     create schema cron; create function cron.schedule(text,text,text) returns bigint language sql as $$ select 1::bigint $$;
     create function public.rls_auto_enable() returns event_trigger language plpgsql as $$ begin return; end $$;`);
   for (const file of (await readdir(new URL('../supabase/migrations/',import.meta.url))).filter(f=>f.endsWith('.sql')).sort()) {
@@ -68,6 +77,22 @@ try {
   await equal(`select count(*) from pg_proc p join pg_namespace n on n.oid=p.pronamespace where n.nspname='public' and p.proname like 'web_%' and (has_function_privilege('anon',p.oid,'execute') or has_function_privilege('authenticated',p.oid,'execute'));`,'0');
   await equal(`select count(*) from pg_class c join pg_namespace n on n.oid=c.relnamespace where n.nspname='public' and c.relname like 'web_%' and c.relkind='r' and (has_table_privilege('anon',c.oid,'select,insert,update,delete') or has_table_privilege('authenticated',c.oid,'select,insert,update,delete'));`,'0');
   await assert.rejects(sql('set role authenticated; select * from public.web_accounts;'),/permission denied/); assertions++;
+  await assert.rejects(sql('set role anon; select public.web_nearby_status();'),/permission denied/); assertions++;
+  const nearbyBurst=await burst('shared-public-device-batch',20,()=>sql('set role service_role; select public.web_nearby_status();'));
+  assert.ok(nearbyBurst.every(r=>r.status==='fulfilled'));assertions++;
+  await equal('select count(*) from net.http_request_queue;','35');
+  await sql(`insert into net._http_response select id,200,jsonb_build_object('success',true,'obj',jsonb_build_object(
+    'devaddress',params->>'devaddress','portstatur','0013','openId','SYNTHETIC_MUST_NOT_ESCAPE'))::text from net.http_request_queue;`);
+  const shared=JSON.parse(await sql('set role service_role; select public.web_nearby_status();'));
+  assert.equal(Object.values(shared.devices).filter(Boolean).length,35);assertions++;
+  assert.ok(!JSON.stringify(shared).includes('SYNTHETIC_MUST_NOT_ESCAPE'));assertions++;
+  await equal('select count(*) from net.http_request_queue;','35');
+  await sql(`update public.web_nearby_reads set requested_at=now()-interval '31 seconds';`);
+  await sql('set role service_role; select public.web_nearby_status();');
+  await equal('select count(*) from net.http_request_queue;','70');
+  await sql(`insert into net._http_response select id,200,'invalid JSON' from net.http_request_queue where id>35;`);
+  const failedNearby=JSON.parse(await sql('set role service_role; select public.web_nearby_status();'));
+  assert.equal(Object.values(failedNearby.devices).filter(Boolean).length,0);assertions++;
   await equal(`set role service_role; select public.web_rate_limit('${uid(99)}','read');`,'0');
 
   // Avoid straddling a legitimate fixed-window reset in this exact-quota assertion.

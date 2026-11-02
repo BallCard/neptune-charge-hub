@@ -45,7 +45,7 @@
 .cw-app .cw-setting-desc { font-size: 12px; line-height: 1.7; }
 .cw-app .cw-records-header { align-items: center; justify-content: space-between; gap: 10px; }
 .cw-app .cw-empty-slot { background: #fff; border: 1px dashed #cbd5e1; border-radius: 16px; padding: 56px 16px; }
-.cw-app .cw-nav { grid-template-columns: repeat(3, 1fr); height: calc(68px + env(safe-area-inset-bottom, 0px)); padding-inline: max(12px, calc((100vw - 440px) / 2)); border-color: #e2e8f0; }
+.cw-app .cw-nav { grid-template-columns: repeat(4, minmax(0, 1fr)); height: calc(68px + env(safe-area-inset-bottom, 0px)); padding-left: max(12px, env(safe-area-inset-left, 0px), calc((100% - 480px) / 2)); padding-right: max(12px, env(safe-area-inset-right, 0px), calc((100% - 480px) / 2)); border-color: #e2e8f0; }
 .cw-app .cw-nav-item { gap: 5px; }
 .cw-app .cw-nav-text { font-size: 11px; }
 .cw-app .cw-nav-item--active .cw-nav-badge-wrap { background: #ecfdf5; border-radius: 9px; box-shadow: 0 0 0 5px #ecfdf5; }
@@ -77,7 +77,7 @@
 .cw-app .cw-station small { font-size: 12px; }
 .cw-app .cw-free-count { font-size: 21px; color: #0f4c3a; }
 .cw-app .cw-station-content { padding: 14px 16px 16px; border-top: 1px solid #f1f5f9; background: #fafafa; }
-.cw-app .cw-ports { grid-template-columns: repeat(10, minmax(0, 1fr)); gap: 8px; }
+.cw-app .cw-ports { grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 8px; }
 .cw-app .cw-ports .cw-port { flex-direction: column; gap: 0; min-height: 54px; font-weight: 700; }
 .cw-app .cw-ports .cw-port small { font-size: 10px; font-weight: 400; color: inherit; margin-top: 2px; }
 .cw-app .cw-ports .cw-port-free { background: #ecfdf5; border-color: #a7f3d0; color: #0f4c3a; }
@@ -95,20 +95,66 @@
 .cw-map-heading h2 { margin: 0; font-size: 18px; }
 .cw-map-heading p { font-size: 12px; color: #64748b; }
 .cw-map-dialog .cw-nav-links { margin-top: 16px; }
-@media (min-width: 768px) {
+@container cw-screen (min-width: 768px) {
   .cw-desktop-nav { display: flex; align-items: center; gap: 4px; padding: 4px; background: #f1f5f9; border: 1px solid #e2e8f0; border-radius: 12px; }
-  .cw-desktop-nav .cw-nav-item { padding: 0 18px; border-radius: 8px; min-height: 36px; }
+  .cw-desktop-nav .cw-nav-item { padding: 0 14px; border-radius: 8px; min-height: 44px; }
   .cw-desktop-nav .cw-nav-badge-wrap { display: none; }
   .cw-desktop-nav .cw-nav-text { font-size: 13px; }
   .cw-desktop-nav .cw-nav-item--active { background: #fff; box-shadow: 0 1px 2px #0f172a0d; }
   .cw-app > .cw-nav { display: none; }
+  .cw-app .cw-ports { grid-template-columns: repeat(12, minmax(0, 1fr)); }
 }
-@media (max-width: 600px) {
+@container cw-screen (max-width: 600px) {
   .cw-app .cw-panel { padding: 18px 14px 24px; }
-  .cw-app .cw-ports { grid-template-columns: repeat(5, minmax(0, 1fr)); }
   .cw-app .cw-task-card { padding-inline: 16px; }
 }
-@media (max-width: 360px) {
+
+/* Keep content scrollable between the header and navigation, including phone safe areas. */
+.cw-viewport-measure { position: fixed; inset: 0; display: grid; grid-template: repeat(8, minmax(0, 1fr)) / repeat(8, minmax(0, 1fr)); pointer-events: none; z-index: -1; }
+.cw-viewport { position: fixed; left: var(--cw-frame-x, 0px); top: var(--cw-frame-y, 0px); width: var(--cw-frame-width, 100%); height: var(--cw-frame-height, var(--cw-viewport-height, 100dvh)); container: cw-screen / inline-size; }
+.cw-app { height: 100%; min-width: 0; }
+.cw-app .cw-header { padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); }
+.cw-main, .cw-panel, .cw-nearby-slot, .cw-account-container, .cw-field-body { min-width: 0; }
+.cw-app .cw-panel { padding-left: max(14px, env(safe-area-inset-left, 0px)); padding-right: max(14px, env(safe-area-inset-right, 0px)); scroll-padding-block: 16px; }
+.cw-panel > * { flex-shrink: 0; }
+.cw-panel { overflow-x: hidden; overflow-wrap: anywhere; }
+.cw-app button, .cw-app a { touch-action: manipulation; }
+.cw-app .cw-nearby-panel .cw-integration-heading { flex-wrap: wrap; row-gap: 14px; }
+.cw-nearby-title { flex: 1 1 150px; min-width: 0; }
+.cw-app .cw-nearby-panel .cw-integration-heading h2 { line-height: 1.4; }
+.cw-app .cw-nearby-panel .cw-integration-toolbar { flex: 1 1 180px; }
+.cw-app .cw-nearby-panel .cw-integration-toolbar button { flex: 1; }
+.cw-app .cw-station > summary { min-height: 82px; }
+.cw-app .cw-station > summary > span:first-child { overflow-wrap: anywhere; }
+.cw-app .cw-station > summary .cw-map-button { flex-shrink: 0; min-width: 66px; }
+.cw-app .cw-port-legend { flex-wrap: wrap; column-gap: 12px; row-gap: 6px; }
+.cw-app .cw-selected-socket { align-items: stretch; gap: 10px; }
+.cw-selected-socket > span { align-self: center; font-size: 13px; }
+.cw-socket-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.cw-socket-actions a { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 44px; padding: 8px 12px; border: 1px solid #86efac; border-radius: 10px; text-decoration: none; font-size: 14px; background: #fff; }
+.cw-app .cw-target-main { flex-wrap: wrap; }
+.cw-app .cw-target-val { flex-basis: 150px; }
+.cw-app .cw-datetime-grid { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
+.cw-map-dialog { position: fixed; width: min(440px, calc(var(--cw-frame-width, 100vw) - 28px)); max-height: calc(var(--cw-frame-height, var(--cw-viewport-height, 100dvh)) - 32px - env(safe-area-inset-top, 0px) - env(safe-area-inset-bottom, 0px)); left: calc(var(--cw-frame-x, 0px) + var(--cw-frame-width, 100vw) / 2); top: calc(var(--cw-frame-y, 0px) + var(--cw-frame-height, var(--cw-viewport-height, 100dvh)) / 2); margin: 0; transform: translate(-50%, -50%); overflow-y: auto; overscroll-behavior: contain; }
+.cw-map-dialog .cw-map-heading { margin-bottom: 16px; }
+.cw-map-eyebrow { display: block; color: #64748b; font-size: 12px; margin-bottom: 6px; }
+.cw-map-dialog .cw-nav-links { display: grid; gap: 10px; margin-block: 20px 14px; }
+.cw-map-dialog .cw-nav-links a { min-width: 0; min-height: 72px; justify-content: flex-start; gap: 12px; padding: 14px; background: #f8fafc; color: #0f4c3a; white-space: normal; }
+.cw-map-dialog .cw-nav-links a span { flex: 1; }
+.cw-map-dialog .cw-nav-links a small { display: block; color: #64748b; font-size: 12px; margin-top: 4px; }
+.cw-map-dialog .cw-map-note { font-size: 12px; }
+@container cw-screen (max-width: 389px) {
+  .cw-app .cw-ports { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .cw-app .cw-station > summary { gap: 8px; padding: 12px; }
+  .cw-app .cw-station-content { padding-inline: 12px; }
+  .cw-app .cw-nav-text { font-size: 11px; }
+  .cw-socket-actions { width: 100%; }
+  .cw-socket-actions > * { flex: 1; }
+}
+@container cw-screen (max-width: 374px) {
+  .cw-app .cw-datetime-grid { grid-template-columns: minmax(0, 1fr); }
+}
+@container cw-screen (max-width: 360px) {
   .cw-app .cw-header { padding-inline: 10px; }
   .cw-header-inner { gap: 8px; }
   .cw-app .cw-panel { padding-inline: 10px; }

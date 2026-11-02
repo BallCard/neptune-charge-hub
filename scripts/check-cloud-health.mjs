@@ -1,5 +1,5 @@
 // Read-only check suitable for an external monitor. Never calls tick or charging APIs.
-const endpoint='https://neptune-charge-hub.vercel.app/api/web/health';
+const endpoint='https://ballcard-neptune-charge-hub.ms.show/api/web/health';
 try {
   const response=await fetch(endpoint,{redirect:'error',cache:'no-store',signal:AbortSignal.timeout(10000)});
   const result=await response.json();

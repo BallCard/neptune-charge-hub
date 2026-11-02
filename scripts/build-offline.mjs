@@ -3,6 +3,14 @@ import { readdir, readFile, writeFile } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..", "out");
+const edition = ['personal', 'campus'].includes(process.env.NEXT_PUBLIC_NEPTUNE_EDITION) ? process.env.NEXT_PUBLIC_NEPTUNE_EDITION : 'shared';
+await writeFile(join(root, 'app-edition.json'), JSON.stringify({ edition }));
+if (edition === 'personal') {
+  const manifest = JSON.parse(await readFile(join(root, 'manifest.webmanifest'), 'utf8'));
+  manifest.name = '晨充 · 个人充电预约';
+  manifest.description = '玉泉插座状态、本人付款链接、套餐和北京时间预约；电脑无需开机。';
+  await writeFile(join(root, 'manifest.webmanifest'), JSON.stringify(manifest));
+}
 async function walk(directory, prefix = "") {
   const paths = [];
   for (const item of await readdir(directory, { withFileTypes: true })) {

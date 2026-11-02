@@ -26,6 +26,7 @@ import {
   formatBookingTime,
 } from "@/lib/workflow-types";
 import { parseQrTarget } from "@/lib/qr-target";
+import { personalOnly } from "@/lib/edition";
 
 export type WorkflowTab = "charge" | "nearby" | "records" | "account";
 
@@ -229,7 +230,8 @@ export default function ChargeWorkflow({
   );
 
   const reserveBlockHint = useMemo(() => {
-    if (!state.executor.connected) return state.executor.kind === "cloud" ? "云端暂不可用，请稍后刷新" : "先登录，再按指引填写本人链接";
+    if (!state.executor.connected) return state.executor.kind === "cloud" ? "云端暂不可用，请稍后刷新" : personalOnly ? "先恢复本人账号，再填写付款链接" : "正在连接浏览器身份，未连接可到设置中重试";
+    if (state.executor.kind === "cloud" && !state.executor.exactAlarm) return "云端调度暂不可用，请稍后刷新核对";
     if (!state.profile.accountBound) return "请先填写并核对本人付款链接";
     if (!state.target) return "请先选择充电插座";
     if (!isQuoteMatching) return "请点击上方重新核对账号与插座";
@@ -249,6 +251,8 @@ export default function ChargeWorkflow({
     return "";
   }, [
     state.executor.connected,
+    state.executor.kind,
+    state.executor.exactAlarm,
     state.profile.accountBound,
     state.target,
     isQuoteMatching,
@@ -295,6 +299,7 @@ export default function ChargeWorkflow({
           className="cw-panel cw-panel-charge"
         >
           <div className="cw-page-heading"><h2>预约充电</h2></div>
+          {personalOnly && <p className="cw-text-sm cw-text-muted">个人云端预约 · 生效后可关闭网页，电脑无需开机</p>}
           {activeBooking && (
             <button
               type="button"
@@ -321,7 +326,7 @@ export default function ChargeWorkflow({
                 className="cw-status-tag cw-status-tag--action"
                 onClick={() => onTabChange("account")}
               >
-                <span>{state.executor.kind === "cloud" ? "云端暂未连接 · 查看账号" : "登录后开启云端预约"}</span>
+                <span>{state.executor.kind === "cloud" ? "云端暂未连接 · 查看设置" : personalOnly ? "恢复本人账号" : "浏览器身份连接中 · 查看设置"}</span>
                 <ChevronRight className="cw-icon-xs" />
               </button>
             )}
@@ -339,7 +344,7 @@ export default function ChargeWorkflow({
                       <span className="cw-target-port">{state.target.port}号插座</span>
                     </div>
                   ) : (
-                    <span className="cw-text-muted">微信扫码或点找空位</span>
+                    <span className="cw-text-muted">从端口查看选择，或粘贴付款链接</span>
                   )}
                   <button
                     type="button"
@@ -347,7 +352,7 @@ export default function ChargeWorkflow({
                     disabled={busy}
                     onClick={() => onTabChange("nearby")}
                   >
-                    {state.target ? "换插座" : "找空位"}
+                    {state.target ? "换插座" : "选插座"}
                   </button>
                 </div>
                 {state.target && (
@@ -402,7 +407,7 @@ export default function ChargeWorkflow({
                       disabled={busy || !state.executor.connected}
                       type="password"
                       autoComplete="off"
-                      placeholder={state.executor.connected ? "粘贴微信本人付款页完整链接" : "请先登录晨充"}
+                      placeholder={state.executor.connected ? "粘贴微信本人付款页完整链接" : "正在连接，请稍候"}
                       className="cw-input cw-input-auth"
                       value={accountUrl}
                       onChange={(e) => {
@@ -613,7 +618,7 @@ export default function ChargeWorkflow({
               disabled={state.executor.kind === "none" ? busy : !canReserve}
               onClick={state.executor.kind === "none" ? () => onTabChange("account") : onReserve}
             >
-              {state.executor.kind === "none" ? "登录并设置预约" : busy ? "正在处理…" : reserveButtonText}
+              {state.executor.kind === "none" ? "查看连接状态" : busy ? "正在处理…" : reserveButtonText}
             </button>
 
             <div className="cw-action-footer-hint">
@@ -630,7 +635,7 @@ export default function ChargeWorkflow({
         <section
           id="tabpanel-nearby"
           role="region"
-          aria-label="找空位"
+          aria-label="端口查看"
           hidden={activeTab !== "nearby"}
           className="cw-panel cw-panel-scrollable"
         >
@@ -759,7 +764,7 @@ export default function ChargeWorkflow({
           hidden={activeTab !== "account"}
           className="cw-panel cw-panel-scrollable"
         >
-          <div className="cw-page-heading"><h2>账号与设置</h2></div>
+          <div className="cw-page-heading"><h2>设置</h2></div>
           <div className="cw-account-container">
             {accountPanel && <div className="cw-account-slot">{accountPanel}</div>}
             {executorPanel && <div className="cw-executor-slot">{executorPanel}</div>}

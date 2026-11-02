@@ -30,6 +30,6 @@ export function formatBookingTime(iso: string) {
 }
 export const emptyWorkflow = (): WorkflowState => ({
   executor: { kind: "none", connected: false, exactAlarm: false, notifications: false,
-    detail: "请先登录晨充，再导入本人付款授权。预约生效后由云端执行。" },
+    detail: "连接本浏览器身份后，导入本人付款授权。预约生效后由云端执行。" },
   profile: { accountBound: false, mailConfigured: false, recipient: "" }, target: null, quote: null, bookings: [],
 });

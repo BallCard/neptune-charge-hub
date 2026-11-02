@@ -12,7 +12,7 @@ test('a switched SDK session cannot transmit the previous account payment form',
     if(url==='/api/web/status'){apiCalls++;return Response.json({state:emptyWorkflow()});}throw Error('No other network request is allowed by this fixture');};
   let client:Awaited<ReturnType<typeof cloudClient>>=null;
   try {client=await cloudClient();assert.ok(client);const login=await client.auth.signInWithPassword({email:'fixture@example.invalid',password:'fixture-password'});assert.equal(login.error,null);
-    await assert.rejects(cloudAction('configureAccount',{url:'private-fixture-never-real'},'11111111-1111-4111-8111-111111111111'),/账号已切换/);assert.equal(apiCalls,0);
+    await assert.rejects(cloudAction('configureAccount',{url:'private-fixture-never-real'},'11111111-1111-4111-8111-111111111111'),/身份已切换/);assert.equal(apiCalls,0);
     await cloudAction('status',{},owner);assert.equal(apiCalls,1);
   } finally {await client?.auth.stopAutoRefresh();globalThis.fetch=original;}
 });

@@ -7,6 +7,8 @@ node_modules/
 .workflow-data/
 artifacts/
 .local/
+.cloudbase/*
+!.cloudbase/project.json
 out/
 /.swc
 public/downloads/*.apk

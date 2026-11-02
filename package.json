@@ -6,6 +6,8 @@
     "dev": "next dev --hostname 127.0.0.1 --port 3086",
     "predev": "node scripts/prepare-decoder.mjs && node scripts/prepare-nearby.mjs",
     "build": "node scripts/prepare-decoder.mjs && node scripts/prepare-nearby.mjs && next build && node scripts/build-offline.mjs",
+    "build:personal": "node scripts/build-personal.mjs",
+    "build:campus": "node scripts/build-campus.mjs",
     "start": "node scripts/serve-static.mjs",
     "typecheck": "tsc --noEmit",
     "test": "tsx --test tests/*.test.ts tests/*.test.mjs",

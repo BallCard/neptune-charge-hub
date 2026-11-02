@@ -8,7 +8,10 @@ const targetSchema=z.object({device:z.string().regex(/^\d{8}$/),port:z.string().
 const publicBookingFields='id,device,port,scheduled_at,created_at,scheme_title,max_minutes,phase,result';
 class ApiError extends Error { constructor(message:string,readonly status=400,readonly retryAfter?:number){super(message);} }
 type Profile={config:AccountConfig|null;target:Target|null;quote:WebQuote|null;accountHash:string|null};
-export function createHandler(admin:SupabaseClient, origins:Set<string>) {
+export type AccessPolicy = { personalOnly?: boolean; personalUserId?: string };
+export function createHandler(admin:SupabaseClient, origins:Set<string>, policy:AccessPolicy = {}) {
+  // Validate server-owned configuration; never choose the first caller or trust user_metadata.
+  const validPersonalOwner = !!policy.personalUserId && z.uuid().safeParse(policy.personalUserId).success;
   async function rpc(name:string,args:Record<string,unknown>={}) {
     const {data,error}=await admin.rpc(name,args);
     if(error){
@@ -25,6 +28,11 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
     const {data,error}=await admin.from('web_control').select('key,value');
     if(error)throw new ApiError('云端运行状态暂不可用。',503);
     return Object.fromEntries((data||[]).map(row=>[row.key,row.value]));
+  }
+  // Coalesce concurrent public probes only; never cache admission/dispatch controls.
+  let pendingHealth:Promise<boolean>|undefined;
+  function healthReady() {
+    return pendingHealth ??= control().then(c=>schedulerReady(c)).finally(()=>{pendingHealth=undefined;});
   }
   async function state(user:string,targetOverride?:Target|null) {
     const [p,c,bookings]=await Promise.all([profile(user),control(),admin.from('web_reservations').select(publicBookingFields).eq('user_id',user).order('created_at',{ascending:false}).limit(100)]);
@@ -46,11 +54,12 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
     const origin=req.headers.get('Origin'), action=new URL(req.url).pathname.split('/').filter(Boolean).at(-1);
     try{
       if(origin&&!origins.has(origin))throw new ApiError('请求来源不匹配。',403);
+      if(policy.personalOnly && !validPersonalOwner)throw new ApiError('个人预约尚未配置完成，暂不能使用。',503);
       if(req.method==='OPTIONS')return new Response(null,{status:204,headers:origin&&origins.has(origin)?{'Access-Control-Allow-Origin':origin,'Access-Control-Allow-Headers':'authorization,apikey,content-type,x-client-info','Access-Control-Allow-Methods':'POST,GET,OPTIONS',Vary:'Origin'}:{}});
-      if(action==='health'&&req.method==='GET'){const ready=schedulerReady(await control());return response(ready?200:503,{app:'neptune-charge-web',schemaReady:true,schedulerReady:ready},origin);}
+      if(action==='health'&&req.method==='GET'){const ready=await healthReady();return response(ready?200:503,{app:'neptune-charge-web',schemaReady:true,schedulerReady:ready,personalOnly:!!policy.personalOnly},origin);}
       if(req.method!=='POST')throw new ApiError('此操作只支持提交。',405);
       const bearer=req.headers.get('Authorization')?.match(/^Bearer ([^\s]{16,8192})$/)?.[1];
-      if(!bearer)throw new ApiError('请先登录晨充账号。',401);
+      if(!bearer)throw new ApiError('本浏览器身份尚未连接，请到设置中重试。',401);
       if(action==='tick'||action==='operations'){
         if(!await rpc('web_cron_authorized',{p_secret:bearer}))throw new ApiError('调度验证未通过。',401);
         if(action==='operations')return response(200,await rpc('web_operations'),origin);
@@ -63,10 +72,11 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>) {
       }
       // Fresh server validation; never authorize from local session storage, user_metadata or a body user_id.
       const {data,error}=await admin.auth.getUser(bearer);
-      if(error||!data.user||data.user.is_anonymous||!data.user.email_confirmed_at)throw new ApiError('登录已失效或邮箱未确认，请重新登录。',401);
+      if(error||!data.user||(!data.user.is_anonymous&&!data.user.email_confirmed_at))throw new ApiError('浏览器身份已失效，或旧账号邮箱尚未确认，请到设置中核对。',401);
       const user=data.user.id;
+      if(policy.personalOnly && user!==policy.personalUserId)throw new ApiError('此预约服务仅供本人使用。',403);
       let sessionId:string;try{const encoded=bearer.split('.')[1];sessionId=JSON.parse(atob(encoded.replaceAll('-','+').replaceAll('_','/'))).session_id;z.uuid().parse(sessionId);}catch{throw new ApiError('登录会话无效，请重新登录。',401);}
-      if(!await rpc('web_session_active',{p_user:user,p_session:sessionId}))throw new ApiError('登录会话已结束，请重新登录。',401);
+      if(!await rpc('web_session_active',{p_user:user,p_session:sessionId}))throw new ApiError('浏览器会话已结束，请到设置中核对；原预约不会因此取消。',401);
       const bucket=action==='status'||action==='refresh'?'read':action==='cancel'||action==='reviewUncertain'?'safety':action==='reserve'?'reserve':'upstream';
       const retry=await rpc('web_rate_limit',{p_user:user,p_bucket:bucket});
       if(!Number.isSafeInteger(retry)||retry<0||retry>60)throw new ApiError('请求限额暂不可核对，请稍后重试。',503);
