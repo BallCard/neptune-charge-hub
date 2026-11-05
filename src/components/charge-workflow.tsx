@@ -65,6 +65,10 @@ export default function ChargeWorkflow({
 
   const [confirmedPlug, setConfirmedPlug] = useState(false);
   const [maxPrepayInput, setMaxPrepayInput] = useState("2");
+  const [pinInput, setPinInput] = useState("");
+  const [pinDraft, setPinDraft] = useState("");
+  const [pinCurrent, setPinCurrent] = useState("");
+  const [pinNotice, setPinNotice] = useState("");
 
   const [uncertainChecks, setUncertainChecks] = useState<Record<string, boolean>>({});
 
@@ -149,10 +153,33 @@ export default function ChargeWorkflow({
         scheduledAt,
         confirmedPlug,
         maxPrepayCents,
+        ...(state.profile.pinSet ? { pin: pinInput } : {}),
       });
       setConfirmedPlug(false);
+      setPinInput("");
     } catch (e: unknown) {
       setLocalError(e instanceof Error ? e.message : "预约失败");
+    }
+  };
+
+  const savePin = async () => {
+    setPinNotice("");
+    if (!/^\d{6}$/.test(pinDraft)) { setPinNotice("口令需为 6 位数字。"); return; }
+    const payload: Record<string, unknown> = { pin: pinDraft };
+    if (state.profile.pinSet) {
+      if (!/^\d{6}$/.test(pinCurrent)) { setPinNotice("请先输入当前口令。"); return; }
+      payload.currentPin = pinCurrent;
+    }
+    if (await wrapAction("setPin", payload)) {
+      setPinDraft(""); setPinCurrent(""); setPinNotice("预约口令已保存，之后每次预约都需要输入。");
+    }
+  };
+
+  const clearPin = async () => {
+    setPinNotice("");
+    if (!/^\d{6}$/.test(pinCurrent)) { setPinNotice("请先输入当前口令，再关闭口令保护。"); return; }
+    if (await wrapAction("clearPin", { pin: pinCurrent })) {
+      setPinCurrent(""); setPinNotice("已关闭预约口令保护。");
     }
   };
 
@@ -223,6 +250,7 @@ export default function ChargeWorkflow({
     maxPrepayCents >= selectedScheme.prepayCents &&
     maxPrepayCents <= 1000 &&
     !hasActiveBooking &&
+    (!state.profile.pinSet || /^\d{6}$/.test(pinInput)) &&
     confirmedPlug &&
     isValidTime &&
     legacyTimeOk &&
@@ -246,7 +274,8 @@ export default function ChargeWorkflow({
     if (maxPrepayCents > 1000) return "单次预扣上限不得超过10元";
     if (hasActiveBooking) return "当前已有生效或进行中的预约";
     if (!isValidTime) return "预约时间需在未来1分钟至48小时内";
-    if (!legacyTimeOk) return state.legacyGuard?.message || "旧电脑保护生效中";
+    if (legacyTimeOk === false) return state.legacyGuard?.message || "旧电脑保护生效中";
+    if (state.profile.pinSet && !/^\d{6}$/.test(pinInput)) return "请输入 6 位预约口令";
     if (!confirmedPlug) return "请先勾选下方接线与信息确认";
     return "";
   }, [
@@ -263,6 +292,8 @@ export default function ChargeWorkflow({
     isValidTime,
     legacyTimeOk,
     state.legacyGuard,
+    state.profile.pinSet,
+    pinInput,
     confirmedPlug,
   ]);
 
@@ -451,6 +482,16 @@ export default function ChargeWorkflow({
                     </div>
                   </div>
                 )}
+
+                {state.profile.accountBound ? (
+                  <p className="cw-text-xs cw-text-muted cw-mt-4">
+                    本浏览器已记住授权：以后换插座或再次预约都不用重新粘贴链接。清除网站数据、使用无痕模式或换浏览器、换设备后需要重新粘贴。
+                  </p>
+                ) : (
+                  <p className="cw-text-xs cw-text-muted cw-mt-4">
+                    首次预约粘贴一次本人付款链接即可；绑定后同一浏览器长期免粘贴，之后只需选插座。
+                  </p>
+                )}
               </div>
             </div>
 
@@ -581,6 +622,27 @@ export default function ChargeWorkflow({
 
           {/* 确认接线与主提交区 */}
           <div className="cw-action-section">
+            {state.profile.pinSet && (
+              <div className="cw-card cw-setting-card">
+                <div className="cw-setting-row">
+                  <label htmlFor="cw-pin-input" className="cw-setting-label">预约口令</label>
+                  <input
+                    id="cw-pin-input"
+                    aria-label="6位预约口令"
+                    disabled={busy}
+                    type="password"
+                    inputMode="numeric"
+                    autoComplete="off"
+                    maxLength={6}
+                    className="cw-input cw-input-sm"
+                    value={pinInput}
+                    onChange={(e) => setPinInput(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    placeholder="6位数字"
+                  />
+                </div>
+                <p className="cw-setting-desc">本浏览器已开启口令保护：拿不到口令的人不能替你发起开电。</p>
+              </div>
+            )}
             <label className="cw-checkbox-row">
               <input
                 disabled={busy}
@@ -782,6 +844,67 @@ export default function ChargeWorkflow({
                   查看指引
                 </button>
               </div>
+            </div>
+
+            <div className="cw-card cw-setting-card">
+              <div className="cw-guide-entry-row">
+                <div className="cw-guide-text-group">
+                  <span className="cw-guide-title">预约口令</span>
+                </div>
+                <span className="cw-text-xs cw-text-muted">{state.profile.pinSet ? "已开启" : "未设置"}</span>
+              </div>
+              {!state.profile.accountBound ? (
+                <p className="cw-setting-desc">先导入本人付款授权，再设置口令。</p>
+              ) : (
+                <>
+                  {state.profile.pinSet && (
+                    <div className="cw-setting-row">
+                      <label htmlFor="cw-pin-current" className="cw-setting-label">当前口令</label>
+                      <input
+                        id="cw-pin-current"
+                        aria-label="当前预约口令"
+                        disabled={busy}
+                        type="password"
+                        inputMode="numeric"
+                        autoComplete="off"
+                        maxLength={6}
+                        className="cw-input cw-input-sm"
+                        value={pinCurrent}
+                        onChange={(e) => setPinCurrent(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                      />
+                    </div>
+                  )}
+                  <div className="cw-setting-row">
+                    <label htmlFor="cw-pin-new" className="cw-setting-label">
+                      {state.profile.pinSet ? "新口令" : "设置口令"}
+                    </label>
+                    <input
+                      id="cw-pin-new"
+                      aria-label="新的6位预约口令"
+                      disabled={busy}
+                      type="password"
+                      inputMode="numeric"
+                      autoComplete="off"
+                      maxLength={6}
+                      className="cw-input cw-input-sm"
+                      value={pinDraft}
+                      onChange={(e) => setPinDraft(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                    />
+                  </div>
+                  <div className="cw-guide-entry-row">
+                    <button type="button" className="cw-btn-secondary cw-btn-compact" disabled={busy} onClick={() => void savePin()}>
+                      {state.profile.pinSet ? "修改口令" : "保存口令"}
+                    </button>
+                    {state.profile.pinSet && (
+                      <button type="button" className="cw-btn-text cw-text-xs" disabled={busy} onClick={() => void clearPin()}>
+                        关闭口令
+                      </button>
+                    )}
+                  </div>
+                  <p className="cw-setting-desc">6 位数字，只在云端保存加盐哈希；口令不对时预约会被服务端拒绝。</p>
+                  {pinNotice && <p className="cw-setting-desc" role="status">{pinNotice}</p>}
+                </>
+              )}
             </div>
 
             {children && <div className="cw-children-slot">{children}</div>}

@@ -10,7 +10,7 @@ export type WorkflowBooking = { id: string; device: string; port: string; schedu
   notificationStatus?: "queued" | "shown" | "failed" | "not-required" };
 export type WorkflowState = { executor: { kind: "none" | "android" | "windows" | "ios" | "cloud"; connected: boolean;
   exactAlarm: boolean; notifications: boolean; detail: string }; profile: { accountBound: boolean;
-  mailConfigured: boolean; recipient: string }; target: QrTarget | null; quote: TargetQuote | null;
+  mailConfigured: boolean; recipient: string; pinSet: boolean }; target: QrTarget | null; quote: TargetQuote | null;
   bookings: WorkflowBooking[]; legacyGuard?: { until: string; message: string }; error?: string };
 export const workflowPhaseNames: Record<BookingPhase, string> = {
   scheduled: "预约已生效", waiting: "等待恢复营业", checking: "核对账号与插座", submitting: "正在发起充电",
@@ -31,5 +31,5 @@ export function formatBookingTime(iso: string) {
 export const emptyWorkflow = (): WorkflowState => ({
   executor: { kind: "none", connected: false, exactAlarm: false, notifications: false,
     detail: "连接本浏览器身份后，导入本人付款授权。预约生效后由云端执行。" },
-  profile: { accountBound: false, mailConfigured: false, recipient: "" }, target: null, quote: null, bookings: [],
+  profile: { accountBound: false, mailConfigured: false, recipient: "", pinSet: false }, target: null, quote: null, bookings: [],
 });

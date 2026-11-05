@@ -4,12 +4,14 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { createHandler } from '../supabase/functions/_shared/handler.ts';
 const owner='11111111-1111-4111-8111-111111111111',stranger='22222222-2222-4222-8222-222222222222',booking='33333333-3333-4333-8333-333333333333';
 const ownerToken='fixture.'+Buffer.from(JSON.stringify({session_id:booking})).toString('base64url')+'.fixture-signature';
-function setup(options:{rate?:number;session?:boolean;rateError?:boolean;cron?:boolean;failedJob?:boolean;personalOnly?:boolean;personalUserId?:string;caller?:string;confirmed?:boolean;anonymous?:boolean}={}){
+function setup(options:{rate?:number;session?:boolean;rateError?:boolean;cron?:boolean;failedJob?:boolean;personalOnly?:boolean;personalUserId?:string;caller?:string;confirmed?:boolean;anonymous?:boolean;pinSet?:boolean;pinOk?:boolean;target?:unknown;quote?:unknown}={}){
   const calls:{name:string;args:Record<string,unknown>}[]=[];let verified=0;
+  const control=()=>[{key:'scheduler',value:{enabled:true,lastTick:new Date().toISOString()}},{key:'dispatch',value:{failed:0,oldestDueSeconds:0}}];
   const admin={auth:{async getUser(token:string){verified++;return token===ownerToken?{data:{user:{id:options.caller||owner,email_confirmed_at:options.confirmed===false?null:'2026-10-13T00:00:00Z',is_anonymous:options.anonymous??false}},error:null}:{data:{user:null},error:{}};}},
-    async rpc(name:string,args:Record<string,unknown>){calls.push({name,args});if(name==='web_rate_limit')return{data:options.rate??0,error:options.rateError?{message:'fixture outage'}:null};if(name==='web_session_active')return{data:options.session??true,error:null};if(name==='web_profile')return{data:{config:{openId:'synthetic-secret'},accountHash:'private-hash',target:null,quote:null},error:null};if(name==='web_cron_authorized')return{data:options.cron??false,error:null};if(name==='web_claim_due')return{data:options.failedJob?[{id:booking}]:[],error:null};if(name==='web_cancel')return{data:args.p_user===owner&&args.p_id===booking,error:null};return{data:null,error:null};},
-    from(table:string){const query={select(){return query;},eq(){return query;},order(){return query;},limit(){return Promise.resolve({data:table==='web_control'?[{key:'scheduler',value:{enabled:true}}]:[],error:null});},then(resolve:(v:unknown)=>void){resolve({data:table==='web_control'?[{key:'scheduler',value:{enabled:true}}]:[],error:null});}};return query;}};
-  const handler=createHandler(admin as unknown as SupabaseClient,new Set(['https://app.example.test']),options);
+    async rpc(name:string,args:Record<string,unknown>){calls.push({name,args});if(name==='web_rate_limit')return{data:options.rate??0,error:options.rateError?{message:'fixture outage'}:null};if(name==='web_session_active')return{data:options.session??true,error:null};if(name==='web_profile')return{data:{config:{openId:'synthetic-secret'},accountHash:'private-hash',target:options.target??null,quote:options.quote??null,pinSet:options.pinSet??false},error:null};if(name==='web_verify_pin')return{data:options.pinOk??true,error:null};if(name==='web_cron_authorized')return{data:options.cron??false,error:null};if(name==='web_claim_due')return{data:options.failedJob?[{id:booking}]:[],error:null};if(name==='web_cancel')return{data:args.p_user===owner&&args.p_id===booking,error:null};return{data:null,error:null};},
+    from(table:string){const query={select(){return query;},eq(){return query;},order(){return query;},limit(){return Promise.resolve({data:table==='web_control'?control():[],error:null});},then(resolve:(v:unknown)=>void){resolve({data:table==='web_control'?control():[],error:null});}};return query;}};
+  const handler=createHandler(admin as unknown as SupabaseClient,new Set(['https://app.example.test']),options,
+    {checkReservation:async()=>({target:{device:'50359160',port:'07'},selected:{id:'full-stop',title:'充满自停 · 最长480分钟',maxMinutes:480,prepayCents:200}} as never)});
   const send=(action:string,body:unknown={},token=ownerToken,origin='https://app.example.test')=>handler(new Request('https://backend.example.test/functions/v1/web-api/'+action,{method:'POST',headers:{Authorization:'Bearer '+token,Origin:origin,'Content-Type':'application/json'},body:JSON.stringify(body)}));
   return{send,calls,get verified(){return verified;}};
 }
@@ -103,6 +105,45 @@ test('diagnostics require the scheduler secret and failed jobs report 503 rather
   const cron=setup({cron:true,failedJob:true});const result=await cron.send('tick');
   assert.equal(result.status,503);assert.deepEqual(await result.json(),{claimed:1,processed:0,failed:1});
   assert.deepEqual(cron.calls.find(c=>c.name==='web_dispatch_report')?.args,{p_claimed:1,p_processed:0,p_failed:1});
+});
+
+test('reservation PIN is required, verified before any platform read, and never echoed back',async()=>{
+  const target={device:'50359160',port:'07'}, quote={fingerprint:'a'.repeat(64)};
+  const body={idempotencyKey:booking,confirmedPlug:true,target,schemeId:'full-stop',quoteFingerprint:quote.fingerprint,
+    scheduledAt:'2026-11-04T22:00:00.000Z',maxPrepayCents:200};
+  const missing=setup({pinSet:true,target,quote});
+  const blocked=await missing.send('reserve',body);
+  assert.equal(blocked.status,409);assert.deepEqual(await blocked.json(),{error:'本浏览器已设置预约口令，请先输入6位口令。'});
+  assert.ok(!missing.calls.some(c=>c.name==='web_verify_pin'||c.name==='web_reserve'));
+  const short=setup({pinSet:true,target,quote});
+  assert.equal((await short.send('reserve',{...body,pin:'12345'})).status,400);
+  assert.ok(!short.calls.some(c=>c.name==='web_reserve'));
+  const wrong=setup({pinSet:true,pinOk:false,target,quote});
+  const rejected=await wrong.send('reserve',{...body,pin:'123456'});
+  assert.equal(rejected.status,409);assert.deepEqual(await rejected.json(),{error:'预约口令不正确，请重新输入。'});
+  assert.ok(!wrong.calls.some(c=>c.name==='web_reserve'));
+  const accepted=setup({pinSet:true,target,quote});
+  const response=await accepted.send('reserve',{...body,pin:'123456'});
+  assert.equal(response.status,200);
+  assert.equal(accepted.calls.find(c=>c.name==='web_verify_pin')?.args.p_user,owner);
+  assert.equal(accepted.calls.find(c=>c.name==='web_reserve')?.args.p_pin,'123456');
+  const raw=await response.text();
+  assert.ok(!raw.includes('123456'));
+  assert.equal(JSON.parse(raw).state.profile.pinSet,true);
+});
+
+test('PIN management stays owner-scoped, format-checked and limited on its own bucket',async()=>{
+  const f=setup({pinSet:true});
+  const saved=await f.send('setPin',{pin:'654321',currentPin:'123456'});
+  assert.equal(saved.status,200);
+  assert.deepEqual(f.calls.find(c=>c.name==='web_set_pin')?.args,{p_user:owner,p_pin:'654321',p_current:'123456'});
+  assert.deepEqual(f.calls.filter(c=>c.name==='web_rate_limit').map(c=>c.args.p_bucket),['pin']);
+  assert.equal((await f.send('setPin',{pin:'12345'})).status,400);
+  assert.equal((await f.send('setPin',{pin:'654321',currentPin:'12'})).status,400);
+  const cleared=await f.send('clearPin',{pin:'654321'});
+  assert.equal(cleared.status,200);
+  assert.deepEqual(f.calls.find(c=>c.name==='web_clear_pin')?.args,{p_user:owner,p_pin:'654321'});
+  assert.equal((await f.send('clearPin',{})).status,400);
 });
 
 test('concurrent public health probes share one read and cannot retain stale readiness or bypass Origin',async()=>{

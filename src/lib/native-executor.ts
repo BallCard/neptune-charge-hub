@@ -4,7 +4,7 @@ import type { WorkflowState } from "./workflow-types";
 declare global { interface Window { NeptuneNative?: { request(raw: string): void } } }
 const safeState = z.object({
   executor: z.object({ kind: z.enum(["none","android","windows","ios"]), connected: z.boolean(), exactAlarm: z.boolean(), notifications: z.boolean(), detail: z.string().max(600) }),
-  profile: z.object({ accountBound: z.boolean(), mailConfigured: z.boolean(), recipient: z.string().max(254) }),
+  profile: z.object({ accountBound: z.boolean(), mailConfigured: z.boolean(), recipient: z.string().max(254), pinSet: z.boolean().optional() }),
   target: z.object({ device: z.string().regex(/^\d{8}$/), port: z.string().regex(/^(0[1-9]|[1-9]\d)$/), areaId: z.number().int().positive().optional() }).nullable(),
   quote: z.object({ device: z.string().regex(/^\d{8}$/), port: z.string().regex(/^(0[1-9]|[1-9]\d)$/), checkedAt: z.iso.datetime(), balanceCents: z.number().int().nonnegative(), businessOpen: z.boolean(), available: z.boolean(), fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
     schemes: z.array(z.object({ id: z.string().max(32), title: z.string().max(80), description: z.string().max(300), maxMinutes: z.number().int().positive(), prepayCents: z.number().int().positive() })).max(30) }).nullable(),
@@ -30,5 +30,5 @@ export function nativeQuery(action: string, payload: Record<string, unknown> = {
 }
 export async function nativeAction(action: string, payload: Record<string, unknown> = {}): Promise<WorkflowState> {
   const result=await nativeQuery(action,payload);
-  try{return safeState.parse(result);}catch{throw new Error("本机执行端返回格式异常，请重新打开助手。");}
+  try{const parsed=safeState.parse(result);return{...parsed,profile:{...parsed.profile,pinSet:parsed.profile.pinSet??false}};}catch{throw new Error("本机执行端返回格式异常，请重新打开助手。");}
 }

@@ -37,7 +37,7 @@ export const server=createServer(async (request, response) => {
   if(request.url==='/health'){jsonReply(response,200,{app:'neptune-charge-hub'});return;}
   if(request.url?.startsWith('/api/web/')){
     const action=request.url.slice('/api/web/'.length);
-    if(!cloud.url||!['health','status','refresh','configureAccount','setTarget','clearTarget','inspectTarget','reserve','cancel','reviewUncertain','deviceProbe'].includes(action)){jsonReply(response,404,{error:'云端操作不存在。'});return;}
+    if(!cloud.url||!['health','status','refresh','configureAccount','setTarget','clearTarget','inspectTarget','reserve','cancel','reviewUncertain','setPin','clearPin','deviceProbe'].includes(action)){jsonReply(response,404,{error:'云端操作不存在。'});return;}
     if(request.method!==(action==='health'?'GET':'POST')||(request.headers.origin&&request.headers.origin!==hubOrigin)){jsonReply(response,403,{error:'请求来源不匹配。'});return;}
     try{
       const chunks=[];let bytes=0;for await(const chunk of request){bytes+=chunk.length;if(bytes>20000)throw Error('Body limit');chunks.push(chunk);}

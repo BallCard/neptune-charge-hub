@@ -7,23 +7,25 @@ import { dispatchBatch, schedulerReady } from './dispatch.ts';
 const targetSchema=z.object({device:z.string().regex(/^\d{8}$/),port:z.string().regex(/^(0[1-9]|[1-9]\d)$/),areaId:z.number().int().positive().optional()});
 const publicBookingFields='id,device,port,scheduled_at,created_at,scheme_title,max_minutes,phase,result';
 class ApiError extends Error { constructor(message:string,readonly status=400,readonly retryAfter?:number){super(message);} }
-type Profile={config:AccountConfig|null;target:Target|null;quote:WebQuote|null;accountHash:string|null};
+type Profile={config:AccountConfig|null;target:Target|null;quote:WebQuote|null;accountHash:string|null;pinSet:boolean};
 export type AccessPolicy = { personalOnly?: boolean; personalUserId?: string };
-export function createHandler(admin:SupabaseClient, origins:Set<string>, policy:AccessPolicy = {}) {
+export type HandlerDeps = { checkReservation?: typeof checkWebReservation };
+export function createHandler(admin:SupabaseClient, origins:Set<string>, policy:AccessPolicy = {}, deps:HandlerDeps = {}) {
+  const checkReservation = deps.checkReservation ?? checkWebReservation;
   // Validate server-owned configuration; never choose the first caller or trust user_metadata.
   const validPersonalOwner = !!policy.personalUserId && z.uuid().safeParse(policy.personalUserId).success;
   async function rpc(name:string,args:Record<string,unknown>={}) {
     const {data,error}=await admin.rpc(name,args);
     if(error){
       if(error.message.includes('capacity_busy'))throw new ApiError('这个时间段预约较多，请选择其他时段。',409);
-      const messages:Record<string,string>={active_plan:'已有待执行或结果不明的预约，暂不能更换授权。',legacy_plan:'已有电脑旧预约，请选择更晚的云端时间。',invalid_time:'请选择至少一分钟后、48小时内的时间。',account_changed:'授权发生变化，请重新核对。',quote_changed:'方案发生变化，请重新核对。',idempotency_conflict:'预约标识与已登记计划不一致，请刷新核对。'};
+      const messages:Record<string,string>={active_plan:'已有待执行或结果不明的预约，暂不能更换授权。',legacy_plan:'已有电脑旧预约，请选择更晚的云端时间。',invalid_time:'请选择至少一分钟后、48小时内的时间。',account_changed:'授权发生变化，请重新核对。',quote_changed:'方案发生变化，请重新核对。',idempotency_conflict:'预约标识与已登记计划不一致，请刷新核对。',pin_required:'预约口令不正确或未填写，请重新输入。',pin_mismatch:'预约口令不正确，请重新输入。',invalid_pin:'预约口令需为6位数字。',not_bound:'请先导入本人付款授权。'};
       if(error.code==='23505')throw new ApiError('已有相同账号的预约或绑定，请刷新核对。',409);
       for(const [code,message] of Object.entries(messages))if(error.message.includes(code))throw new ApiError(message,409);
       throw new ApiError('云端记录暂未完成，请刷新核对后再操作。',503);
     }
     return data;
   }
-  const profile=async(user:string):Promise<Profile>=>await rpc('web_profile',{p_user:user})||{config:null,target:null,quote:null,accountHash:null};
+  const profile=async(user:string):Promise<Profile>=>await rpc('web_profile',{p_user:user})||{config:null,target:null,quote:null,accountHash:null,pinSet:false};
   async function control() {
     const {data,error}=await admin.from('web_control').select('key,value');
     if(error)throw new ApiError('云端运行状态暂不可用。',503);
@@ -40,7 +42,7 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>, policy:
     const ready=schedulerReady(c);
     const activeGuard=c.legacy_guard&&Date.parse(c.legacy_guard.until)>Date.now()?c.legacy_guard:undefined;
     return {executor:{kind:'cloud',connected:true,exactAlarm:ready,notifications:false,detail:ready?'云端按分钟检查；可能延迟，超出十分钟窗口则停止。':'云端执行尚未就绪、延迟或状态异常，暂不能预约。'},
-      profile:{accountBound:!!p.config,mailConfigured:false,recipient:''},target:targetOverride===undefined?p.target:targetOverride,quote:p.quote,
+      profile:{accountBound:!!p.config,mailConfigured:false,recipient:'',pinSet:p.pinSet===true},target:targetOverride===undefined?p.target:targetOverride,quote:p.quote,
       ...(activeGuard?{legacyGuard:activeGuard}:{}),bookings:(bookings.data||[]).map(b=>({id:b.id,device:b.device,port:b.port,scheduledAt:b.scheduled_at,createdAt:b.created_at,
         schemeTitle:b.scheme_title,maxMinutes:b.max_minutes,phase:b.phase,result:b.result,mailStatus:'not-required',notificationStatus:'not-required'}))};
   }
@@ -77,7 +79,7 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>, policy:
       if(policy.personalOnly && user!==policy.personalUserId)throw new ApiError('此预约服务仅供本人使用。',403);
       let sessionId:string;try{const encoded=bearer.split('.')[1];sessionId=JSON.parse(atob(encoded.replaceAll('-','+').replaceAll('_','/'))).session_id;z.uuid().parse(sessionId);}catch{throw new ApiError('登录会话无效，请重新登录。',401);}
       if(!await rpc('web_session_active',{p_user:user,p_session:sessionId}))throw new ApiError('浏览器会话已结束，请到设置中核对；原预约不会因此取消。',401);
-      const bucket=action==='status'||action==='refresh'?'read':action==='cancel'||action==='reviewUncertain'?'safety':action==='reserve'?'reserve':'upstream';
+      const bucket=action==='status'||action==='refresh'?'read':action==='cancel'||action==='reviewUncertain'?'safety':action==='reserve'?'reserve':action==='setPin'||action==='clearPin'?'pin':'upstream';
       const retry=await rpc('web_rate_limit',{p_user:user,p_bucket:bucket});
       if(!Number.isSafeInteger(retry)||retry<0||retry>60)throw new ApiError('请求限额暂不可核对，请稍后重试。',503);
       if(retry>0)throw new ApiError('操作过于频繁，请稍后重试；取消和结果核对使用独立限额。',429,retry);
@@ -99,11 +101,14 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>, policy:
         const checked=await inspectWebTarget(p.config,p.target);
         await rpc('web_target',{p_user:user,p_target:checked.target,p_quote:checked.quote});
       }else if(action==='reserve'){
-        const input=z.object({idempotencyKey:z.uuid(),confirmedPlug:z.literal(true),target:targetSchema,schemeId:z.string().max(32),quoteFingerprint:z.string().regex(/^[a-f0-9]{64}$/),scheduledAt:z.iso.datetime(),maxPrepayCents:z.number().int().min(1).max(1000)}).parse(payload);
+        const input=z.object({idempotencyKey:z.uuid(),confirmedPlug:z.literal(true),target:targetSchema,schemeId:z.string().max(32),quoteFingerprint:z.string().regex(/^[a-f0-9]{64}$/),scheduledAt:z.iso.datetime(),maxPrepayCents:z.number().int().min(1).max(1000),pin:z.string().regex(/^\d{6}$/).optional()}).parse(payload);
         const c=await control();if(!schedulerReady(c))throw new ApiError('云端执行延迟或状态异常，暂不能登记，请稍后重试。',503);
         const p=await profile(user);if(!p.config||!p.quote||!p.target||p.target.device!==input.target.device||p.target.port!==input.target.port||p.quote.fingerprint!==input.quoteFingerprint)throw new ApiError('目标或方案发生变化，请重新核对。',409);
-        const checked=await checkWebReservation(p.config,p.target,input.schemeId,input.quoteFingerprint,input.maxPrepayCents);
-        await rpc('web_reserve',{p_user:user,p_id:input.idempotencyKey,p_scheduled:input.scheduledAt,p_target:checked.target,p_scheme:checked.selected,p_cap:input.maxPrepayCents,
+        if(p.pinSet&&!input.pin)throw new ApiError('本浏览器已设置预约口令，请先输入6位口令。',409);
+        // Cheap check first: a wrong PIN never triggers a platform read or a new plan.
+        if(p.pinSet&&await rpc('web_verify_pin',{p_user:user,p_pin:input.pin})!==true)throw new ApiError('预约口令不正确，请重新输入。',409);
+        const checked=await checkReservation(p.config,p.target,input.schemeId,input.quoteFingerprint,input.maxPrepayCents);
+        await rpc('web_reserve',{p_user:user,p_id:input.idempotencyKey,p_scheduled:input.scheduledAt,p_target:checked.target,p_scheme:checked.selected,p_cap:input.maxPrepayCents,p_pin:input.pin??null,
           p_snapshot:{config:p.config,target:checked.target,schemeId:input.schemeId,fingerprint:input.quoteFingerprint,maxPrepayCents:input.maxPrepayCents}});
       }else if(action==='cancel'){
         if(!await rpc('web_cancel',{p_user:user,p_id:z.uuid().parse(payload.id)}))throw new ApiError('取消未生效：预约已进入开电提交或已结束，请刷新核对。',409);
@@ -114,6 +119,12 @@ export function createHandler(admin:SupabaseClient, origins:Set<string>, policy:
         const snapshot=await rpc('web_decrypt',{p_cipher:booking.snapshot_cipher});
         if((await inspectOwnOrder(snapshot.config,snapshot.target)).any)throw new ApiError('平台仍有本人当前订单，请在微信核对，暂不能解除。',409);
         if(!await rpc('web_review',{p_user:user,p_id:input.id}))throw new ApiError('核对仍在进行，请稍后刷新。',409);
+      }else if(action==='setPin'){
+        const input=z.object({pin:z.string().regex(/^\d{6}$/),currentPin:z.string().regex(/^\d{6}$/).optional()}).parse(payload);
+        await rpc('web_set_pin',{p_user:user,p_pin:input.pin,p_current:input.currentPin??null});
+      }else if(action==='clearPin'){
+        const input=z.object({pin:z.string().regex(/^\d{6}$/)}).parse(payload);
+        await rpc('web_clear_pin',{p_user:user,p_pin:input.pin});
       }else throw new ApiError('此操作不存在。',404);
       return response(200,{state:await state(user)},origin);
     }catch(error){
