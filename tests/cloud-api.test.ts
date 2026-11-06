@@ -1,7 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { createHandler } from '../supabase/functions/_shared/handler.ts';
+import { webActions } from '../server/web-api.ts';
 const owner='11111111-1111-4111-8111-111111111111',stranger='22222222-2222-4222-8222-222222222222',booking='33333333-3333-4333-8333-333333333333';
 const ownerToken='fixture.'+Buffer.from(JSON.stringify({session_id:booking})).toString('base64url')+'.fixture-signature';
 function setup(options:{rate?:number;session?:boolean;rateError?:boolean;cron?:boolean;failedJob?:boolean;personalOnly?:boolean;personalUserId?:string;caller?:string;confirmed?:boolean;anonymous?:boolean;pinSet?:boolean;pinOk?:boolean;target?:unknown;quote?:unknown}={}){
@@ -144,6 +146,15 @@ test('PIN management stays owner-scoped, format-checked and limited on its own b
   assert.equal(cleared.status,200);
   assert.deepEqual(f.calls.find(c=>c.name==='web_clear_pin')?.args,{p_user:owner,p_pin:'654321'});
   assert.equal((await f.send('clearPin',{})).status,400);
+});
+
+test('every action the handler implements is routable through the Node/ModelScope transport',async()=>{
+  const source=await readFile(new URL('../supabase/functions/_shared/handler.ts',import.meta.url),'utf8');
+  const implemented=new Set([...source.matchAll(/action===\s*'([A-Za-z]+)'/g)].map(match=>match[1]));
+  // Both branches of the pair /api/web?action=... and /api/web/<action> must stay in sync.
+  assert.ok(implemented.size>=10, 'handler actions were not detected');
+  const missing=[...implemented].filter(action=>!webActions.has(action));
+  assert.deepEqual(missing,[],'transport allowlist is missing handler actions: '+missing.join(','));
 });
 
 test('concurrent public health probes share one read and cannot retain stale readiness or bypass Origin',async()=>{

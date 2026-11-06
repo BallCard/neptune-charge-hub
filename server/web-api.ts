@@ -2,7 +2,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import { createClient, type SupabaseClient } from '@supabase/supabase-js';
 import { createHandler, type AccessPolicy } from '../supabase/functions/_shared/handler';
 const url='https://jozlxfxhtpximjcfrhya.supabase.co';
-export const webActions=new Set(['health','status','refresh','configureAccount','setTarget','clearTarget','inspectTarget','reserve','cancel','reviewUncertain','deviceProbe','tick','operations']);
+export const webActions=new Set(['health','status','refresh','configureAccount','setTarget','clearTarget','inspectTarget','reserve','cancel','reviewUncertain','setPin','clearPin','deviceProbe','tick','operations']);
 export function checkedOrigin(value:string):string {
   const parsed=new URL(value);
   if(parsed.protocol!=='https:'||parsed.username||parsed.password||parsed.pathname!=='/'||parsed.search||parsed.hash||parsed.port)throw Error('Invalid public origin');

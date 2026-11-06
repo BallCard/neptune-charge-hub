@@ -4,6 +4,14 @@
 
 当前链路为“现有Supabase数据库和唯一分钟调度 → 魔搭Node.js执行端 → 尼普顿”。网页与执行端都在魔搭，原Vercel部署保留。免费CPU资源实际为2vCPU/8GB，Docker、Secrets与公开体验模式已接通；没有购买资源或增加定时器。
 
+## 11月6日最新：预约口令上线
+
+筛选发行`2940d9e408dc`、魔搭提交`c2a267a69cca3771eb9d5d317d61bf33ec39fa3b`已发布原空间。生产迁移`20261105020000_web_pin_lock.sql`先应用并进入`supabase_migrations`历史，新增`pin_hash`/`pin_set_at`、`web_profile.pinSet`、`web_set_pin`/`web_clear_pin`/`web_verify_pin`，`web_reserve`改为8参数并在数据库层强制校验口令，限流新增`pin`桶；`anon`/`authenticated`均无执行权限。迁移前用事务回滚验证：无口令与错误口令只得到`pin_required`，正确口令通过口令门后仍被快照校验拦截，未写任何记录。
+
+发布中发现并修掉一个阻断：Node/魔搭传输层`webActions`白名单漏了`setPin`/`clearPin`，线上表现为405。补齐后重新筛选打包，并新增回归测试比对handler里的`action==='...'`与传输白名单。首个缺陷发行`8aba87ee0bcd`已就地替换，未宣称通过。
+
+线上验收：148个静态资源与筛选包逐字节一致；`/server.mjs`、`/asset-manifest.json`、`/.env`、`/token.dpapi`、`/api/windows/status`、`/downloads/app.apk`均404；匿名业务与调度401、恶意Origin 403；35台设备420端口可读；首页CSP的`frame-ancestors`仍只允许魔搭两个域名；部署后分钟回调正常（`check-cloud-health` PASS，分发失败0）。新界面资源含“预约口令”“不用重新粘贴”。临时匿名身份验证`setPin`未认证401、未绑定409、格式错400、`clearPin`409后即删除，无账号或预约残留；未创建真实预约或开电。资源、Secrets、免费2vCPU/8GB与唯一分钟调度未改。
+
 ## 10月21日最新：免注册浏览器身份
 
 按用户最新要求，校园版改为首次使用预约时自动建立并持久保存浏览器身份，删除注册、验证码和找回密码流程，保留已有身份与折叠的旧邮箱账号恢复。Supabase匿名身份已开启，注册前数据库钩子拒绝新邮箱账号，服务端继续验证用户、有效会话和数据归属。Gmail配置作为历史保留，本轮不发信。清数据或换设备无法自动找回，已生效预约仍执行。

@@ -2,8 +2,10 @@
 -- confirm a 6-digit reservation PIN before a new plan is registered. The PIN is stored only
 -- as a per-user bcrypt hash and is never returned to the client.
 alter table public.web_accounts
-  add column pin_hash text,
-  add column pin_set_at timestamptz;
+  add column if not exists pin_hash text,
+  add column if not exists pin_set_at timestamptz;
+alter table public.web_accounts
+  drop constraint if exists web_accounts_pin_hash_check;
 alter table public.web_accounts
   add constraint web_accounts_pin_hash_check check (pin_hash is null or pin_hash ~ '^[$]2[aby][$][0-9]{2}[$].{53}$');
 
@@ -14,7 +16,7 @@ create or replace function public.web_profile(p_user uuid) returns jsonb languag
 $$;
 
 -- Set or change the PIN. Changing an existing PIN requires the current one.
-create function public.web_set_pin(p_user uuid,p_pin text,p_current text default null) returns void
+create or replace function public.web_set_pin(p_user uuid,p_pin text,p_current text default null) returns void
 language plpgsql security invoker set search_path='' as $$
 declare a public.web_accounts;
 begin
@@ -28,7 +30,7 @@ begin
 end $$;
 
 -- Remove the PIN; the current PIN is required so an open tab cannot silently drop the factor.
-create function public.web_clear_pin(p_user uuid,p_pin text) returns void
+create or replace function public.web_clear_pin(p_user uuid,p_pin text) returns void
 language plpgsql security invoker set search_path='' as $$
 declare a public.web_accounts;
 begin
@@ -40,7 +42,7 @@ begin
 end $$;
 
 -- Read-only check so the API can reject a wrong PIN before any platform read or write.
-create function public.web_verify_pin(p_user uuid,p_pin text) returns boolean
+create or replace function public.web_verify_pin(p_user uuid,p_pin text) returns boolean
 language sql security invoker set search_path='' as $$
   select exists(select 1 from public.web_accounts a where a.user_id=p_user
     and (a.pin_hash is null or (p_pin is not null and p_pin ~ '^[0-9]{6}$' and extensions.crypt(p_pin,a.pin_hash)=a.pin_hash)));
@@ -48,7 +50,7 @@ $$;
 
 -- Replace the seven-argument signature so PostgREST cannot resolve an overload that skips the PIN check.
 drop function if exists public.web_reserve(uuid,uuid,timestamptz,jsonb,jsonb,integer,jsonb);
-create function public.web_reserve(p_user uuid,p_id uuid,p_scheduled timestamptz,p_target jsonb,p_scheme jsonb,p_cap integer,p_snapshot jsonb,p_pin text default null) returns uuid
+create or replace function public.web_reserve(p_user uuid,p_id uuid,p_scheduled timestamptz,p_target jsonb,p_scheme jsonb,p_cap integer,p_snapshot jsonb,p_pin text default null) returns uuid
 language plpgsql security invoker set search_path='' as $$
 declare a public.web_accounts; existing public.web_reservations; guard timestamptz;
 begin
